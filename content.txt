@@ -1,0 +1,41 @@
+Hadoop introduction
+Hive intro
+	Role on top of Hadoop
+	Hive architecture
+		Hive MetaStore
+		HiveServer2
+		Clients
+	Memory problems
+Java memory model???
+Automation of the measurements
+	Finding the measuring points
+	Create class to measure automatically
+		Tool used: jcmd
+		Parsing output
+Searching for memory problems
+	High partition numbers
+	HDFS path memory waste
+		Main idea to solve the issue
+		Drawbacks of the solution
+			Solve toUri problem
+				On demand creation
+				WeakReference
+				SoftReference
+				Chosen solution
+		Benchmarks
+			How to do it
+			Results 
+	HiveServer2 compilelock???
+		Memory effects of removing this
+	Multiple Configuration objects
+		Usage of HiveConf
+		Problems with the duplication
+		Ideas for solving this
+			HiveConf chain
+			CopyOnFirstWriteProperties - an already existing solution
+				Problems with it
+			Own implementation of Properties
+				Measurements
+				Results
+				Testing
+??????
