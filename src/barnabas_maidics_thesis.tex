@@ -4,7 +4,11 @@
 % TODO Change language to en_GB (recommended) or en_US for English documents
 \documentclass[11pt,a4paper,oneside]{report}             % Single-side
 %\documentclass[11pt,a4paper,twoside,openright]{report}  % Duplex
+\usepackage{titlesec}
 
+
+
+\titleformat{\chapter}[hang]{\Huge\bfseries}{\thechapter{ }}{0pt}{\Huge\bfseries}
 \input{include/packages}
 
 %TODO Set the main variables
@@ -15,7 +19,7 @@
 \newcommand{\vikkonzulensAVezeteknev}{Vary}
 \newcommand{\vikkonzulensAKeresztnev}{Peter}
 
-\newcommand{\vikkonzulensBMegszolitas}{dr.~}
+\newcommand{\vikkonzulensBMegszolitas}{PhD~}
 \newcommand{\vikkonzulensBVezeteknev}{Dudas}
 \newcommand{\vikkonzulensBKeresztnev}{Akos}
 
@@ -23,7 +27,7 @@
 \newcommand{\vikkonzulensCVezeteknev}{}
 \newcommand{\vikkonzulensCKeresztnev}{}
 
-\newcommand{\vikcim}{Hive performance analysis and optimization} % Cím
+\newcommand{\vikcim}{Analyze and optimize the performance of Hive} % Cím
 \newcommand{\viktanszek}{Department of Automation and Applied Informatics} % Tanszék
 \newcommand{\vikdoktipus}{\bsc} % Dokumentum típusa (\bsc vagy \msc)
 \newcommand{\vikmunkatipusat}{szakdolgozatot} % a "hallgató nyilatkozat" részhez: szakdolgozatot vagy diplomatervet
@@ -31,6 +35,9 @@
 \input{include/tdk-variables}
 \newcommand{\szerzoMeta}{\vikszerzoVezeteknev{} \vikszerzoKeresztnev} % egy szerző esetén
 %\newcommand{\szerzoMeta}{\vikszerzoVezeteknev{} \vikszerzoKeresztnev, \tdkszerzoB} % két szerző esetén
+
+
+
 
 %TODO Language configuration -- choose one
 % Beállítások magyar nyelvű dolgozathoz
@@ -76,9 +83,6 @@
 
 %TODO import your own content
 \include{content/introduction}
-\include{content/latex-tools}
-\include{content/thesis-format}
-\include{content/template-usage}
 
 
 % Acknowledgements
@@ -94,13 +98,13 @@
 
 % Bibliography
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 \addcontentsline{toc}{chapter}{\bibname}
 \bibliography{bib/mybib}
 
-
 % Appendix
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-\include{content/appendices}
+
 
 %\label{page:last}
 \end{document}

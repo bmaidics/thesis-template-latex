@@ -2,6 +2,31 @@
 \chapter{\bevezetes}
 %----------------------------------------------------------------------------
 
-A bevezető tartalmazza a diplomaterv-kiírás elemzését, történelmi előzményeit, a feladat indokoltságát (a motiváció leírását), az eddigi megoldásokat, és ennek tükrében a hallgató megoldásának összefoglalását.
 
-A bevezető szokás szerint a diplomaterv felépítésével záródik, azaz annak rövid leírásával, hogy melyik fejezet mivel foglalkozik.
+The digital era has led to large amounts of data being amassed by companies every day. Data comes from multiple sources: sensors, sales data, communication systems, logging of system events \etc. According to Forbes \cite{Forbes} 2.5 quintillion bytes of data created each day. That means 2.5 million Terabytes per day. Bigger corporations can easily create hundreds of Terabytes a day. So we need a new solution to process this amount of data. The traditional relational databases (RDBMS) can deal only with Gigabytes. Hadoop provides a software framework to scale up our system for storing, processing and analyzing big data.
+
+In this chapter, I will write about the basics of Hadoop architecture, why Hive was created on top if it and the performance issues it faces.
+
+\section{Hadoop basics}
+Apache Hadoop is an open source distributed framework for managing, processing  and storing huge amount of data in clustered systems built from commodity hardware. All modules in Hadoop was designed with an assumption that hardware failures are common and should be automatically handled by the framework. One of the most important characteristic of Hadoop that it partitions the data and computation across many hosts and executing computation in parallel close to the data it uses.  \cite{Hadoop-wiki}
+
+The base of the Hadoop framework contains the following modules:
+\begin{itemize}
+	\item HDFS - Hadoop Distributed File System: designed to store large data sets reliably and stream those at high bandwidth to user applications.
+	\item Hadoop MapReduce: an implementation of the MapReduce programming model for large data processing
+	\item YARN - Yet Another Resource Negotiator: a resource management and job scheduling technology
+	\item Hadoop Common: contains libraries and utilities needed by other Hadoop modules
+\end{itemize}
+\subsection{Hadoop \vs traditional databases}
+Traditional databases cannot be used when we want to process and store big data. The main differences between Hadoop and traditional RDBMS:
+\begin{itemize}
+	\item \textbf{Data Volume}: RDBMS works better when the data volume is low (Gigabytes). However when data size is huge (Terabytes-Petabytes) traditional databases fail. On the other hand Hadoop can easily handle this amount of data.
+	\item \textbf{Data Variety}: this generally means the type of data to be processed. Hadoop has the ability to store and process data whether it is structured, semi-structured or unstructured. Even though  it is mostly used for large amount of unstructured data. 
+	In contrast, traditional RDBMS can only be used to manage structured or semi-structured data. 
+	\item \textbf{Scalability}: RDBMS provides vertical scalability. You can add more resources, memory or CPU to a machine in the cluster. Whereas Hadoop provides horizontal scalability. It means we can add more machines to an existing cluster. As a result of this Hadoop becomes fault tolerant. We can easily recover data in case of a failure of one of the machines.
+	\item \textbf{Data Processing}: Apache Hadoop supports OLAP (Online Analytical Processing) that involves very complex queries and aggregations. The database design is de-normalized, having fewer tables. On the other hand, RDBMS supports OLTP (Online Transaction Processing), which involves fast query processing. The database design is normalized having large number of tables. \cite{Hadoop-vs-RDBMS}
+\end{itemize}
+\subsection{HDFS - Hadoop Distributed File System}
+
+\subsection{MapReduce}
+\subsection{Yarn}
