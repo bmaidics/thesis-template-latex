@@ -6,8 +6,6 @@
 %\documentclass[11pt,a4paper,twoside,openright]{report}  % Duplex
 \usepackage{titlesec}
 
-
-
 \titleformat{\chapter}[hang]{\Huge\bfseries}{\thechapter{ }}{0pt}{\Huge\bfseries}
 \input{include/packages}
 
@@ -31,6 +29,9 @@
 \newcommand{\viktanszek}{Department of Automation and Applied Informatics} % Tanszék
 \newcommand{\vikdoktipus}{\bsc} % Dokumentum típusa (\bsc vagy \msc)
 \newcommand{\vikmunkatipusat}{szakdolgozatot} % a "hallgató nyilatkozat" részhez: szakdolgozatot vagy diplomatervet
+
+\newcommand{\myparagraph}[1]{\paragraph{#1}\mbox{}\\}
+
 
 \input{include/tdk-variables}
 \newcommand{\szerzoMeta}{\vikszerzoVezeteknev{} \vikszerzoKeresztnev} % egy szerző esetén
