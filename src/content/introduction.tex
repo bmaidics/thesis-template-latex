@@ -3,7 +3,7 @@
 %----------------------------------------------------------------------------
 
 
-The digital era has led to large amounts of data being amassed by companies every day. Data comes from multiple sources: sensors, sales data, communication systems, logging of system events \etc. According to Forbes \cite{Forbes} 2.5 quintillion bytes of data created each day. That means 2.5 million Terabytes per day. Bigger corporations can easily create hundreds of Terabytes daily. So we need a new solution to process this amount of data. The traditional relational databases (RDBMS) can deal only with Gigabytes. Hadoop provides a software framework to scale up our system for storing, processing and analyzing big data.
+The digital era has led to large amounts of data being amassed by companies every day. Data comes from multiple sources: sensors, sales data, communication systems, logging of system events \etc. According to Forbes \cite{Forbes} 2.5 quintillion bytes of data created each day. That means 2.5 million Terabytes per day. Bigger corporations can easily create hundreds of Terabytes daily. We need a new solution to process this amount of data. The traditional relational databases (RDBMS) can deal only with Gigabytes. Hadoop provides a software framework to scale up our system for storing, processing and analyzing big data.
 
 In this chapter, I will write about the basics of Hadoop architecture, why Hive was created on top if it and the performance issues it faces.
 
@@ -72,5 +72,157 @@ When someone reads a file, HDFS Client asks the NameNode for the list of DataNod
 	\centering
 \end{figure}
 The client creates a new file by giving its path to the NameNode. For each block, the NameNode will return a list of DataNodes to place the replicas. The client pipelines data to the given DataNodes, and they will confirm the creation of the block to the NameNode.
-\subsection{MapReduce}
-\subsection{Yarn}
+\subsection{MapReduce \cite{Dean:2004:MSD:1251254.1251264}}
+MapReduce is a programming model for processing and generating large data sets. Users specify two functions:
+\begin{itemize}
+	\item map function: processes a key/value pair to generate a set of intermediate key/value pairs
+	\item reduce function: merges the intermediate values associated with the same key
+\end{itemize}
+
+Programs written in this style are automatically executed parallelly  on large clusters. This allows programmers with no experience in parallel programming and distributed systems to take advantage of the available resources on the cluster.
+\paragraph{Example \cite{MapReduce-example}}
+This example shows how MapReduce handles the problem of counting words. We have the following list of words: 
+\begin{center}
+	\textbf{Dear, Bear, River, Car, Car, River, Deer, Car, Bear}
+\end{center}
+
+\begin{figure}[H]
+	\includegraphics[width=150mm, keepaspectratio]{figures/MapReduce_Example.png}
+	\caption*{The overall MapReduce word count process}
+	\centering
+\end{figure}
+\begin{itemize}
+	\item \textbf{Splitting}: the first step is dividing the input into three splits. This will distribute the work among the Map nodes.
+	\item \textbf{Mapping}: tokenize the words in each mapper and giving a value of 1 for each token/word, since every word in itself will occur once.
+	\item \textbf{Shuffling}: after the mapping phase a partition process takes place where sorting and shuffling happens: all key-value pairs with the same key will be sent to the corresponding reducer
+	\item \textbf{Reducing}: a reducer gets the list of pairs and counts the number of ones in this list.
+\end{itemize}
+
+\subsubsection*{Advantages of MapReduce}
+\paragraph{Parallel processing}
+In MapReduce we are dividing the job among multiple nodes, that can work on a part of the job simultaneously. This way the data processing is done by multiple machines instead of one, so the processing time is reduced.
+\paragraph{Data locality}
+In Hadoop MapReduce, instead of moving data into the processing unit, we move the processing unit to the data. The traditional approach has its limit when it comes to processing big data. Moving huge data to  processing is costly, network issues can occur and the master node (where data is stored) can get overloaded and may fail. 
+
+However, the MapReduce approach is very cost efficient, since all the nodes are working parallel on their part of the data and there is no chance of a node getting overloaded.
+
+Using Hadoop we just need to provide the map and reduce funtions in java, the rest is done by the framework.  The word count example would look like the following in java:
+\paragraph{Map}\mbox{}\\
+\begin{lstlisting}[language=Java]
+	public void map(LongWritable key, Text value, Context context) throws OException,InterruptedException {
+		String line = value.toString();
+		StringTokenizer tokenizer = new StringTokenizer(line);
+		while (tokenizer.hasMoreTokens()) {
+			value.set(tokenizer.nextToken());
+			context.write(value, new IntWritable(1));
+		}
+	}
+\end{lstlisting}
+Both the input and output of the Mapper is a key/value pair. 
+
+Input:
+\begin{itemize}
+	\item Key: the offset of each line in the text file: LongWritable
+	\item Value: each individual line: Text
+\end{itemize}
+
+Output:
+\begin{itemize}
+	\item Key: the tokenized words: Text
+	\item Value: the hardcoded value 1: IntWritable
+\end{itemize}
+
+\paragraph{Reduce}\mbox{}\\
+\begin{lstlisting}
+	public void reduce(Text key, Iterable<IntWritable> values,Context context) throws IOException,InterruptedException {
+		int sum=0;
+		for(IntWritable x: values) {
+			sum+=x.get();
+		}
+		context.write(key, new IntWritable(sum));
+	}
+\end{lstlisting}
+Both the input and output of the Mapper is a key/value pair. 
+
+Input:
+\begin{itemize}
+	\item Key: unique words which have been generated after the sorting and shuffling phase: Text
+	\item Value: a list of integers corresponding to each key: IntWritable 
+	\item \eg Bear, [1, 1]
+\end{itemize}
+
+Output:
+\begin{itemize}
+	\item Key: all the unique words present in the input text file: Text
+	\item Value: the number of occurrences of each of the unique words: IntWritable 
+	\item \eg  Bear, 2; Car, 3
+\end{itemize}
+
+The traditional way to execute MapReduce operations is that the users specify the Map and Reduce functions in Java. However, this approach has some problems:
+\begin{itemize}
+	\item it is not a high level language for data processing
+	\item data scientists do not understand Java. They came from the world of traditional databases, where SQL is used.
+	\item even a simple problem (like word counting) resulted in hundreds of lines of code.
+\end{itemize}
+
+\subsection{Yarn \cite{YARN}}
+\subsubsection*{Hadoop 1.0 resource management}
+Previous to Hadoop 2.0, a single JobTracker had the responsibility to monitor the resources and distribute the MapReduce jobs for the DataNodes and monitor these jobs. 
+
+In Hadoop 1.0 the MapReduce module was responsible for cluster resource management and data processing as well.
+
+\begin{figure}[H]
+	\includegraphics[width=100mm, keepaspectratio]{figures/hadoop10.png}
+	\centering
+	\caption*{Hadoop 1.0 architecture}
+	\centering
+\end{figure}
+
+Resource management in Hadoop 1.0 \cite{Hadoop1.0}:
+\begin{enumerate}
+\item Client applications submit jobs to the Job tracker.
+\item The JobTracker talks to the NameNode to determine the location of the data
+\item The JobTracker locates TaskTracker nodes with available slots at or near the data
+\item The JobTracker submits the work to the chosen TaskTracker nodes.
+\item The TaskTracker nodes are monitored. If they do not submit heartbeat signals often enough, they are deemed to have failed and the work is scheduled on a different TaskTracker.
+\item A TaskTracker will notify the JobTracker when a task fails. The JobTracker decides what to do then: it may resubmit the job elsewhere, it may mark that specific record as something to avoid, and it may even blacklist the TaskTracker as unreliable.
+\item When the work is completed, the JobTracker updates its status.
+\item Client applications can poll the JobTracker for information.
+\end{enumerate}
+
+The architecture of Hadoop 1.0 has many problems:
+\begin{itemize}
+	\item  It \textbf{limits scalability} since the JobTracker runs on a single machine doing multiple tasks it becomes a bottleneck: resource management, job and task scheduling, monitoring are done by the JobTracker.
+	\item JobTracker is a \textbf{Single Point of Failure}. If it goes down, all the jobs are halted.
+	\item In Hadoop 1.0 \textbf{JobTracker is tightly integrated with the MapReduce} module so only MapReduce applications can run on Hadoop. Altough MapReduce is powerful enough to express many data analysis algorithms (mostly batch driven data analysis), it is not always the optimal paradigm. It is often desirable to run other computation paradigms on Hadoop like real time analysis and Message-Passing approach, \etc. Since HDFS makes it easy to store large amounts of data it is desirable to utilize this for other big data problems.
+\end{itemize}
+
+Developers recognized that splitting the responsibility to resource management and application monitoring has serious benefits. YARN is a re-architecture of Hadoop that allows multiple applications to run on the same platform. With YARN, applications run "in" Hadoop, instead of "on" Hadoop. This takes Hadoop beyond a batch application to a ‘data operating system’ where HDFS is the file system and YARN is the operating system. 
+
+\begin{figure}[H]
+	\includegraphics[width=100mm, keepaspectratio]{figures/hadoop10vs20.png}
+	\centering
+	\caption*{From Hadoop 1.0 to Hadoop 2.0}
+	\centering
+\end{figure}
+
+The fundamental idea of YARN is to split up the functionalities of resource management and job scheduling/monitoring. In YARN we have a global ResourceManager (RM) and per-application ApplicationMaster (AM). An application is either a single job or a DAG (Directed Acyclic Graph) of jobs. 
+
+The \textbf{ResourceManager} and the \textbf{NodeManager} together form the data-processing framework. ResourceManager distributes the resources among all the applications in the system. The NodeManager is a per-machine agent who is responsible for containers, monitor their resource usages (cpu, memory, network, disk) and report them to the ResourceManager. 
+
+The per-application \textbf{ApplicationMaster} is framework specific, and its task is to ask the ResourceManager for resources when needed. It is also working with the NodeManager to execute and monitor tasks.
+
+The ResourceManager has two main components: Scheduler and ApplicationsManager.
+\begin{itemize}
+	\item The Scheduler is responsible for allocating resources to various applications running in the cluster. The scheduler schedules based on the resource requirements of each application. The scheduler does not perform monitoring or status tracking of the application. 
+	\item The ApplicationsManager is responsible for accepting job-submissions. It negotiates the first container for executing the application specific ApplicationMaster. It also provides a service for restarting the ApplicationMaster container on failure. 
+\end{itemize}
+
+\begin{figure}[H]
+	\includegraphics[width=120mm, keepaspectratio]{figures/yarn.png}
+	\centering
+	\caption*{Yarn architecture}
+	\centering
+\end{figure}
+
+In summary, with YARN Hadoop is able to run applications that do not follow the MapReduce modell since it decouples the resource management and scheduling capabilities of MapReduce. With the help of YARN we can efficiently utilize the resources and can run multiple applications in Hadoop, all sharing a common resource.
