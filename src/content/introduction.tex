@@ -17,7 +17,7 @@ The base of the Hadoop framework contains the following modules:
 	\item YARN - Yet Another Resource Negotiator: a resource management and job scheduling technology
 	\item Hadoop Common: contains libraries and utilities for other Hadoop modules
 \end{itemize}
-\subsection{Hadoop \vs traditional databases}
+\iffalse\subsection{Hadoop \vs traditional databases}
 Traditional databases cannot be used when we want to process and store big data. Main differences between Hadoop and traditional RDBMS \cite{Hadoop-vs-RDBMS}:
 \begin{itemize}
 	\item \textbf{Data Volume}: RDBMS works better when data volume is low (Gigabytes). However, when data size is huge (Terabytes-Petabytes) traditional databases fail. Users have to pick another solution for the problem. Hadoop can easily handle this amount of data so it became the number one big data platform.
@@ -25,7 +25,7 @@ Traditional databases cannot be used when we want to process and store big data.
 	In contrast, traditional RDBMS can only be used to manage structured or semi-structured data. 
 	\item \textbf{Scalability}: RDBMS provides vertical scalability. We can add more resources, memory or CPU to a machine in the cluster. Whereas Hadoop scales horizontally which means we can add more machines to an existing cluster. As a result of this, Hadoop becomes fault tolerant. We can easily recover data in case of a failure.
 	\item \textbf{Data Processing}: Apache Hadoop supports OLAP (Online Analytical Processing), which involves very complex queries and aggregations. The database design is de-normalized, having fewer tables. On the other hand, RDBMS supports OLTP (Online Transaction Processing), which involves fast query processing. The database design is normalized and contains large numbers of tables.
-\end{itemize}
+\end{itemize}\fi
 \subsection{HDFS - Hadoop Distributed File System}
 HDFS is the file system of Hadoop. It stores file system metadata and application data separately. The dedicated server that stores metadata is the NameNode. Application data is stored on other servers (DataNodes). These servers are connected and they communicate using TCP-based protocols \cite{Shvachko:2010:HDF:1913798.1914427}. 
 
@@ -231,4 +231,31 @@ The ResourceManager is divided into two main components: Scheduler and Applicati
 	\centering
 \end{figure}
 
-In summary, with YARN Hadoop is able to run applications that do not follow the MapReduce model since it decouples the resource management and scheduling capabilities of MapReduce. With the help of YARN, we can efficiently utilize the resources and can run multiple applications in Hadoop, all sharing a common resource.s
+In summary, with YARN Hadoop is able to run applications that do not follow the MapReduce model since it decouples the resource management and scheduling capabilities of MapReduce. With the help of YARN, we can efficiently utilize the resources and can run multiple applications in Hadoop, all sharing a common resources.
+
+\section{Apache Hive}
+Hadoop is a popular implementation of the map-reduce model and used widely to process and store extremely large datasets. However, a map-reduce program is very low level and difficult to maintain or reuse. Data scientist come from a world, where SQL is the standard of data processing. Apache Hive gives us a data warehouse solution built on top of Hadoop to write SQL-like queries so we can utilize the advantage of a declarative language. The language similar to SQL is called HiveQL.
+
+\subsection{Hive \vs RDBMS}
+This section shows the main differences between Hive and traditional databases (\eg MySQL, Oracle, MS SQL \etc).
+
+Hive supports SQL interface but it is not a full database. It follows WORM (Write Once Read Many) model while RDBMS is designed for Write and Read many times. Hive uses schema on read and traditional databases offer schema on write. Looking into Hive's approach, data is not validated until it is read. We can define multiple schemas to the same data and it provides a fast initial loading since the operation is just a copy and write. However the schema on read approach has some drawbacks. Schema check on write ensures that the data is not corrupt and it provides a better query performance because when reading data, schema checking is not needed. Hive is a better choice when the schema is not available at loading time since it can be added later dynamically. 
+
+From Hive 0.13, Hive supports transactions \cite{Hive-transactions} and full ACID semantics at row level, but with many limitations. Previous to this, atomicity, consistency and durability were available and only at partition level. With introducing transactions Insert, Update and Delete keywords were added to HiveQL. 
+
+The maximum data size allowed in a traditional RDBMS is 10's of Terabytes. However, Hive can easily handle Petabytes.
+
+\subsubsection*{Conclusion}
+Hive is a great choice if we want to analyze large unstructured, relatively static data sets, fast querying is not necessary and easy, low-cost scalability is required. RDBMS provides fast responses for analyzing data dynamically, but scalability and maximum data size is limited.
+
+\subsection{Architecture}
+The main components of Hive are the following \cite{Hive-paper}:
+\begin{itemize}
+	\item \textbf{Driver}: manages the lifecycle of a HiveQL query by creating a session for it. The driver also collects the result after the execution phase.
+	\item  \textbf{MetaStore}: stores metadata about tables, columns or partitions. For example, it stores the table schema and location.
+	\item \textbf{Compiler}: compiles the HiveQL statement and generates the execution plan using the partition and table metadata obtained from the MetaStore. First, it parses the query and does semantic analysis. Then converts it into AST (Abstract Syntax Tree) and after compatibility checking to a DAG of Map and Reduce tasks (if Hadoop MapReduce is the execution engine). 
+	\item \textbf{Optimizer}: transformations are done to get an optimized DAG for better performance. It is an evolving component. In the earlier stage, only rule-based optimization was available which performed column pruning and predicate pushdown. Later, map-side join was introduced and several other join optimization, also cost-based optimization was added.
+	\item \textbf{Execution Engine}: executes the plan created by the compiler. The plan is a DAG of stages. The engine manages the dependencies between these stages and executes them in the corresponding component. Hive is compatible with 3 execution engines: MapReduce, Apache TEZ and Spark which can run in Hadoop YARN.
+	\item \textbf{HiveServer2}: a service that provides a thrift interface so clients can execute queries against Hive. Thrift is an RPC (Remote Call Procedure) framework for defining services for multiple languages.
+	\item \textbf{Clients}: multiple clients are available to interact with Hive. Beeline (CLI), JDBC/ODBC, Python or Ruby client \etc.
+\end{itemize}
