@@ -242,14 +242,14 @@ Hadoop is a popular implementation of the map-reduce model and used widely to pr
 \subsection{Hive \vs RDBMS}
 This section shows the main differences between Hive and traditional databases (\eg MySQL, Oracle, MS SQL \etc).
 
-Hive supports SQL interface but it is not a full database. It follows WORM (Write Once Read Many) model while RDBMS is designed for Write and Read many times. Hive uses schema on read and traditional databases offer schema on write. Looking into Hive's approach, data is not validated until it is read. We can define multiple schemas to the same data and it provides a fast initial loading since the operation is just a copy and write. However the schema on read approach has some drawbacks. Schema check on write ensures that the data is not corrupt and it provides a better query performance because when reading data, schema checking is not needed. Hive is a better choice when the schema is not available at loading time since it can be added later dynamically. 
+Hive supports SQL interface but it is not a full database. It follows WORM (Write Once Read Many) model while RDBMS is designed for Write and Read many times. Hive uses schema on read and traditional databases offer schema on write. Looking into Hive's approach, data is not validated until it is read. We can define multiple schemas to the same data and it provides a fast initial loading since the operation is just a copy and write. However, the schema on read approach has some drawbacks. Schema check on write ensures that the data is not corrupt and it provides a better query performance: when we read data, schema checking is not needed. Hive is a better choice when the schema is not available at loading time since it can be added later dynamically. 
 
 From Hive 0.13, Hive supports transactions \cite{Hive-transactions} and full ACID semantics at row level, but with many limitations. Previous to this, atomicity, consistency and durability were available and only at partition level. With introducing transactions Insert, Update and Delete keywords were added to HiveQL. 
 
 The maximum data size allowed in a traditional RDBMS is 10's of Terabytes. However, Hive can easily handle Petabytes.
 
 \subsubsection*{Conclusion}
-Hive is a great choice if we want to analyze large unstructured, relatively static data sets, fast querying is not necessary and easy, low-cost scalability is required. RDBMS provides fast responses for analyzing data dynamically, but scalability and maximum data size are limited.
+Hive is a great choice if we want to analyze large, relatively static data sets, fast querying is not necessary and easy, low-cost scalability is required. RDBMS provides fast responses for analyzing data dynamically, but scalability and maximum data size are limited.
 
 \subsection{Data storage}
 Hive structure data in the following units  \cite{Hive-paper, Hive-data-units}:
@@ -319,3 +319,30 @@ Clients can connect to HiveServer2 using its Thrift Service. HS2 supports authen
 Sentry is a role-based authorization module for Hadoop, so we can control the priviliges for authenticated users. Hive can use Sentry over an "authorization hook", which Sentry registers to Hive configuration file if secure cluster is enabled. 
 
 HMS uses DataNucleus to persist metadata, so any relational database supported by it cal be used: it can be either embedded (\eg Derby) or remote (\eg MySQL) Metastore database.
+
+\subsection{Life of a Query}
+\begin{figure}[H]
+	\includegraphics[width=150mm, keepaspectratio]{figures/hive-query.png}
+	\centering
+	\caption*{Life of a query  \cite{Hive-query-figure}}
+\end{figure}
+User submits a query using one of the available Hive clients. HiveServer2 recieves the query through its Thrift interface (1). Compilation takes place: 
+
+First, it parses the query (2), so the query string is transformed into a parse tree. The semantic analyzer (3) converts the parse tree into a block-based query representation (Query Block Tree). At this phase connection to Metastore is made (4, 5) to gather information about the tables used by the query, like partition information for later pruning. It checks type compatibility and flag semantic errors. 
+
+The logical plan generator (6) transforms the internal representation to an operator tree, which is the logical plan. These operators can either be relational algebra operators (like filter, join) or Hive specific operators (\eg reduceSink) which are used to convert the query later to a series of MapReduce jobs.
+
+Optimization takes place for better performance (7). Most common optimizations are: 
+\begin{itemize}
+	\item Column pruning, so only columns needed by the query are kept
+	\item Predicate pushdown: this way the rows can be filtered as soon as possible
+	\item Partition pruning: prunes partitions that do not satisfy the predicate
+	\item Map-side join: if joining two tables and one of them is small, map-side join can be done. This way the small table will be copied to the memory all the Map nodes.
+	\item \etc
+\end{itemize}
+
+At physical plan generation (8) the logical plan is split into a series of Map, Reduce and HDFS tasks (of course if the execution engine is Spark, then to Spark tasks). 
+
+The Driver gets back the physical plan (9) and sends (10, 11) it to the corresponding execution engine (which is MapReduce by default). In this case, Hadoop executes the series of Map and Reduce tasks an returns the result to the Driver (12, 13), which sends it to the user (14).
+
+
