@@ -26,6 +26,7 @@ Traditional databases cannot be used when we want to process and store big data.
 	\item \textbf{Scalability}: RDBMS provides vertical scalability. We can add more resources, memory or CPU to a machine in the cluster. Whereas Hadoop scales horizontally which means we can add more machines to an existing cluster. As a result of this, Hadoop becomes fault tolerant. We can easily recover data in case of a failure.
 	\item \textbf{Data Processing}: Apache Hadoop supports OLAP (Online Analytical Processing), which involves very complex queries and aggregations. The database design is de-normalized, having fewer tables. On the other hand, RDBMS supports OLTP (Online Transaction Processing), which involves fast query processing. The database design is normalized and contains large numbers of tables.
 \end{itemize}\fi
+\clearpage
 \subsection{HDFS - Hadoop Distributed File System}
 HDFS is the file system of Hadoop. It stores file system metadata and application data separately. The dedicated server that stores metadata is the NameNode. Application data is stored on other servers (DataNodes). These servers are connected and they communicate using TCP-based protocols \cite{Shvachko:2010:HDF:1913798.1914427}. 
 
@@ -83,6 +84,7 @@ When someone reads a file, HDFS Client asks the NameNode for the list of DataNod
 	\caption*{HDFS file writing}
 \end{figure}
 The client creates a new file by giving its path to the NameNode. For each block, the NameNode will return a list of DataNodes to place the replicas. The client pipelines data to the given DataNodes, and they will confirm the creation of the block to the NameNode.
+\clearpage
 \subsection{MapReduce}
 MapReduce is a programming model for processing data sets. Users specify two functions \cite{Dean:2004:MSD:1251254.1251264}:
 \begin{itemize}
@@ -233,6 +235,7 @@ The ResourceManager is divided into two main components: Scheduler and Applicati
 
 In summary, with YARN Hadoop is able to run applications that do not follow the MapReduce model since it decouples the resource management and scheduling capabilities of MapReduce. With the help of YARN, we can efficiently utilize the resources and can run multiple applications in Hadoop, all sharing a common resources.
 
+\clearpage
 \section{Apache Hive}
 Hadoop is a popular implementation of the map-reduce model and used widely to process and store extremely large datasets. However, a map-reduce program is very low level and difficult to maintain or reuse. Data scientist come from a world, where SQL is the standard of data processing. Apache Hive gives us a data warehouse solution built on top of Hadoop to write SQL-like queries so we can utilize the advantage of a declarative language. The language similar to SQL is called HiveQL.
 
