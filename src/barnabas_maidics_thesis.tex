@@ -2,7 +2,7 @@
 % !TeX encoding = UTF-8
 % !TeX program = xelatex
 % TODO Change language to en_GB (recommended) or en_US for English documents
-\documentclass[11pt,a4paper,oneside]{report}             % Single-side
+\documentclass[12pt,a4paper,oneside]{report}             % Single-side
 %\documentclass[11pt,a4paper,twoside,openright]{report}  % Duplex
 \usepackage{titlesec}
 \usepackage{wrapfig}
@@ -45,9 +45,8 @@
 %\input{include/thesis-hu}
 % Settings for English documents
 \input{include/thesis-en}
-
+\linespread{1.25}
 \input{include/preamble}
-
 %--------------------------------------------------------------------------------------
 % Table of contents and the main text
 %--------------------------------------------------------------------------------------
@@ -82,7 +81,7 @@
 % The main part of the thesis
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 \pagenumbering{arabic}
-
+\setlength{\parindent}{1.5 cm} % Default is 15pt.
 %TODO import your own content
 \include{content/introduction}
 

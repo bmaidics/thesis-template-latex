@@ -2,7 +2,6 @@
 \chapter{\bevezetes}
 %----------------------------------------------------------------------------
 
-
 The digital era has led to large amounts of data being amassed by companies every day. Data comes from multiple sources: sensors, sales data, communication systems, logging of system events \etc. According to Forbes \cite{Forbes} 2.5 quintillion bytes of data is created each day. That means 2.5 million Terabytes per day. Bigger corporations can easily create hundreds of Terabytes daily. We need a new solution to process this amount of data. The traditional relational databases (RDBMS) can deal only with Gigabytes. Hadoop provides a software framework to scale up our system for storing, processing and analyzing big data.
 
 In this chapter, I will write about the basics of Hadoop architecture, why Hive was created on top of it and the performance issues it faces.
@@ -10,7 +9,7 @@ In this chapter, I will write about the basics of Hadoop architecture, why Hive 
 \section{Hadoop basics}
 Apache Hadoop is an open source distributed framework for managing, processing  and storing a huge amount of data in clustered systems built from commodity hardware. All modules in Hadoop were designed with an assumption that hardware failures are frequent and should be automatically handled by the framework. One of the most important characteristics of Hadoop is that it partitions the data and computation across many hosts and executes computation in parallel close to the data it uses.  \cite{Hadoop-wiki}
 
-The base of the Hadoop framework contains the following modules:
+\noindent The base of the Hadoop framework contains the following modules:
 \begin{itemize}
 	\item HDFS - Hadoop Distributed File System: designed to store large data sets reliably and stream those at high bandwidth to user applications.
 	\item Hadoop MapReduce: an implementation of the MapReduce programming model for large data processing
@@ -30,7 +29,7 @@ Traditional databases cannot be used when we want to process and store big data.
 \subsection{HDFS - Hadoop Distributed File System}
 HDFS is the file system of Hadoop. It stores file system metadata and application data separately. The dedicated server that stores metadata is the NameNode. Application data is stored on other servers (DataNodes). These servers are connected and they communicate using TCP-based protocols \cite{Shvachko:2010:HDF:1913798.1914427}. 
 
-The file system is based on the following goals and principles \cite{HDFS-docs}:
+\noindent The file system is based on the following goals and principles \cite{HDFS-docs}:
 \begin{itemize}
 	\item \textbf{Hardware failure}: Hardware failures should be considered as normal, rather than an exception. An HDFS instance consists of hundreds or thousands of components so this means that some of them will always be non-functional. Therefore, fault detection and automatic recovery is a must.
 	\item \textbf{Streaming Data Access}: HDFS was designed for batch processing rather than interactive use. Therefore, HDFS users need streaming access to their data. This means that high throughput is more important than low latency.
@@ -133,13 +132,13 @@ Using Hadoop we just need to provide the map and reduce functions, the rest is d
 \end{lstlisting}
 The input and output of the Mapper is a key/value pair. 
 
-Input:
+\noindent Input:
 \begin{itemize}
 	\item Key: the offset of each line
 	\item Value: each line
 \end{itemize}
 
-Output:
+\noindent Output:
 \begin{itemize}
 	\item Key: the tokenized words
 	\item Value: the hardcoded value 1
@@ -157,14 +156,14 @@ Output:
 \end{lstlisting}
 Both the input and output of the Reducer is a key/value pair. 
 
-Input:
+\noindent Input:
 \begin{itemize}
 	\item Key: unique words, generated after the sorting and shuffling phase
 	\item Value: a list of integers corresponding to each keys
 	\item \eg Bear, [1, 1]
 \end{itemize}
 
-Output:
+\noindent Output:
 \begin{itemize}
 	\item Key: all the unique words in the input text file
 	\item Value: number of occurrences for each unique word
@@ -194,7 +193,7 @@ In Hadoop 1.0 the MapReduce module was responsible for cluster resource manageme
 	\centering
 \end{figure}
 
-Resource management in Hadoop 1.0 \cite{Hadoop1.0}:
+\noindent Resource management in Hadoop 1.0 \cite{Hadoop1.0}:
 
 Clients submit jobs to the JobTracker which turns to the NameNode. It returns the location of the data. The JobTracker locates TaskTracker nodes with available slots close to the data and sends the job to the chosen TaskTracker nodes. After the job has started the JobTracker monitors the chosen TaskTracker nodes. If they do not send heartbeats frequently, they are deemed to have failed so the task will be scheduled on a different TaskTracker. The JobTracker gets a notification if a task fails. It decides what to do then: it may send the job to another TaskTracker, it can mark the record as something to avoid, or it may even put the TaskTracker to blacklist since it is unreliable. If the JobTracker sees that the task is finished, it will update its status. Clients poll the JobTracker for information.
 
@@ -268,6 +267,7 @@ Hive tables map to \texttt{<warehouse\_root\_directory>/table\_name} directory. 
 	CREATE TABLE test_table(c1 string, c2 int) 
 		PARTITIONED BY (date string, hour int);
 \end{lstlisting}
+
 The above SQL statement will create a table with two columns and two partitions and it will be stored in  \texttt{/user/hive/warehouse/test\_table} directory in HDFS. For every distinct date and hour value, a partititon will exists. Although, the partition columns are not part of the data, they are stored in the table metadata. 
 
 New partitions can be added either with the INSERT or the ALTER statement. These commands will create the corresponding HDFS directories: 
@@ -294,6 +294,7 @@ Although, data in Hive is always in the corresponding directory (\texttt{<wareho
 	CREATE EXTERNAL TABLE test_external(c1 string, c2 int)
 		LOCATION '/user/example_table/example_data';
 \end{lstlisting}
+
 Hive assumes that the external table in its internal format. The difference between an external and normal (managed by Hive) table is that the drop table command doesn't effect the data itself on an external table. However, on a normal table, it drops the associated data.
 
 \subsection{Architecture}
@@ -345,4 +346,16 @@ At physical plan generation (8) the logical plan is split into a series of Map, 
 
 The Driver gets back the physical plan (9) and sends (10, 11) it to the corresponding execution engine (which is MapReduce by default). In this case, Hadoop executes the series of Map and Reduce tasks an returns the result to the Driver (12, 13), which sends it to the user (14).
 
+\subsection{Hive memory limitations}
+HiveServer2 and Hive Metastore require massive resources, especially memory wise. If we want to run up to 40 concurrent queries the recommended heap size range is 12-16 GB. Once we go above 16 GB it is recommended to split HS2 into multiple instances and load-balance them \cite{Hive-memory-problems}.
 
+Although, with correct configuration and setup we can make our HiveServer2 instance long living, crashes can occur because of Out Of Memory error (OOM) in certain use-cases. Thus, minimizing the memory footprint whenever we can is a must.
+
+\noindent The memory reserved by HiveServer2 can grow significantly in these situations  \cite{Hive-memory-problems}: 
+\begin{itemize}
+	\item When we have many table partitions, HS2 needs to load all the partition metadata from HMS. This can cause a real memory issue, and  HiveServer can run out of heap memory and can crash.
+	\item Concurrent connections can be made to HS2, and memory is directly proportional to the number of connections. 
+	\item Complex queries that access large number of partitions from multiple tables can easily crash HS2.
+\end{itemize}
+
+If any of these conditions exists, Hive can slow down, refuse further connections, queries can fail and long query execution can occur. If the Garbage Collector cannot handle the memory reserved, HiveServer2 can go OOM.
