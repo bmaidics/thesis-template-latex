@@ -1,0 +1,91 @@
+\chapter{Memory Analysis}
+To get a better insight on how Hive uses memory, I needed to build a basic model when and why Hive's reserved memory grows. During my work, I mainly focused on HiveServer2. The first step toward the model building was to get basic knowledge about Hive's code base and the query compilation process. The query life cycle mentioned in the previous chapter helped, but I had to find those steps in the code. If I have these points I am able to start measuring and maybe find some memory wastes.
+
+\section{Finding the measuring points}
+Hive has around 2 million lines of code so locating the main steps of the query processing was challenging. 
+
+As a starting point, the user (this case me) enters a query in the client. At this point, I run Hive locally, so the simplest way for submitting queries against Hive was using Beeline command line client. HS2 gets the query through its Thrift interface. After this,s the query goes to the \textit{Driver} class, which is the main class for executing queries.
+
+The Driver has two methods that are important for me: run and runInternal. The run method gets called first, which basically just delegates to the runInternal method. These two functions return with a CommandProcessorResponse, once the compilation and execution are done. 
+
+\noindent The runInternal does the two main steps:
+\begin{itemize}
+	\item Driver.compile: gets the command string and parses, analyses the query and generates the execution plan.
+	\item Driver.execute: gets the execution plan and executes it on a specific engine (MapReduce, Spark or TEZ).
+\end{itemize}
+
+\subsection{Compile}
+The first step of the compilation is the parsing. It takes a string and returns an Abstract Syntax Tree (AST or the Parse Tree).
+
+\begin{lstlisting}
+public int compile(String command, ...) {
+...
+	ASTNode tree;
+	try {
+		tree = ParseUtils.parse(command, ctx);
+	} catch (ParseException e) {
+...
+}
+\end{lstlisting}
+\subsubsection{Semantic Analyzis}
+After the AST is generated, the compile process will continue with the semantic analyzer. The type of the analyzer will depend on the query type we are running. For SELECT and INSERT the SemanticAnalyzer class is used. 
+
+\begin{lstlisting}
+public int compile(String command, ...) {
+...
+	BaseSemanticAnalyzer sem = SemanticAnalyzerFactory.get(queryState, tree);
+...
+	sem.analyze(tree, ctx);
+...
+}
+\end{lstlisting}
+
+The SemanticAnalyzer class is the main phase during compilation. It checks for semantic errors, fetches metadata from Metastore, generates and optimizes the query plan. The analyze method of the BaseSemanticAnalyzer is called from the Driver's compile method, and it delegates the call to the corresponding Analyzer. From now on, I will write about the SemanticAnalyzer class and its phases (which is executed for SELECTS and INSERTS.
+
+\begin{lstlisting}
+void analyzeInternal(ASTNode ast, PlannerContext plannerCtx) {
+	//(1)
+	if (!genResolvedParseTree(ast, plannerCtx)) {
+		return;
+	}
+	//(2)
+	Operator sinkOp = genOPTree(ast, plannerCtx);
+	...
+	//(3)
+	...
+	resultSchema = convertRowSchemaToViewSchema(...);
+	...
+	//(4)
+	Optimizer optm = new Optimizer();
+	... = optm.optimize();
+	...
+	//(5)
+	TaskCompiler compiler = TaskCompilerFactory.getCompiler(conf, pCtx);
+	compiler.compile(pCtx, rootTasks, inputs, outputs);
+	...
+}
+\end{lstlisting}
+
+\begin{enumerate}
+	\item Fetches metadata and fill the Parse Tree with it so it becomes a Resolved Parse Tree.
+	\item The Operation Tree gets created which will contain operators that process data read from the table. This tree is called by the Map and Reduce methods.
+	\item The semantic analyzer will deduce the schema of the result set from the row schema
+	\item A logical optimization is done on the Operator Tree. There are two types of optimization: one that transforms the Operator Tree (like removing unnecessary operations) and one that does not (predicate pushdown, vectorization \etc).
+	\item Physical optimization and translation to the target execution engine take place. The output of this stage is the query plan. It can optimize the tree according to the engine used. For example in MR, common join can be translated to map-side join, if one of the tables is small enough to fit into the memory of the map nodes.
+\end{enumerate}
+
+\begin{lstlisting}
+public int compile(String command, ...) {
+	...
+	sem.validate();
+	...
+}
+\end{lstlisting}
+
+After the semantic analysis is completed, the Driver will validate the plan. When it completes, the compilation ends and Hive will continue with the execution.
+
+\clearpage
+\section{Measure the memory of HiveServer2}
+If I want to measure the memory usage of Hive, I need a something to create heap dumps and generate memory statistics. There are several tools to choose from. In this section, I will present the tools I considered and the method I used to get a better understanding of HS2 memory patterns.
+
+ 

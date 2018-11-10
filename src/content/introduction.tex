@@ -329,7 +329,7 @@ HMS uses DataNucleus to persist metadata, so any relational database supported b
 \end{figure}
 User submits a query using one of the available Hive clients. HiveServer2 recieves the query through its Thrift interface (1). Compilation takes place: 
 
-First, it parses the query (2), so the query string is transformed into a parse tree. The semantic analyzer (3) converts the parse tree into a block-based query representation (Query Block Tree). At this phase connection to Metastore is made (4, 5) to gather information about the tables used by the query, like partition information for later pruning. It checks type compatibility and flag semantic errors. 
+First, it parses the query (2), so the query string is transformed into a parse tree using the open source Apache ANTLR.  The semantic analyzer (3) converts the parse tree into a block-based query representation (Query Block Tree). At this phase connection to Metastore is made (4, 5) to gather information about the tables used by the query, like partition information for later pruning. It checks type compatibility and flag semantic errors. 
 
 The logical plan generator (6) transforms the internal representation to an operator tree, which is the logical plan. These operators can either be relational algebra operators (like filter, join) or Hive specific operators (\eg reduceSink) which are used to convert the query later to a series of MapReduce jobs.
 
@@ -355,7 +355,7 @@ Although, with correct configuration and setup we can make our HiveServer2 insta
 \begin{itemize}
 	\item When we have many table partitions, HS2 needs to load all the partition metadata from HMS. This can cause a real memory issue, and  HiveServer can run out of heap memory and can crash.
 	\item Concurrent connections can be made to HS2, and memory is directly proportional to the number of connections. 
-	\item Complex queries that access large number of partitions from multiple tables can easily crash HS2.
+	\item Complex queries that access a large number of partitions from multiple tables can easily crash HS2.
 \end{itemize}
 
 If any of these conditions exists, Hive can slow down, refuse further connections, queries can fail and long query execution can occur. If the Garbage Collector cannot handle the memory reserved, HiveServer2 can go OOM.
