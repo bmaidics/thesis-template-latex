@@ -25,7 +25,7 @@ Traditional databases cannot be used when we want to process and store big data.
 	\item \textbf{Scalability}: RDBMS provides vertical scalability. We can add more resources, memory or CPU to a machine in the cluster. Whereas Hadoop scales horizontally which means we can add more machines to an existing cluster. As a result of this, Hadoop becomes fault tolerant. We can easily recover data in case of a failure.
 	\item \textbf{Data Processing}: Apache Hadoop supports OLAP (Online Analytical Processing), which involves very complex queries and aggregations. The database design is de-normalized, having fewer tables. On the other hand, RDBMS supports OLTP (Online Transaction Processing), which involves fast query processing. The database design is normalized and contains large numbers of tables.
 \end{itemize}\fi
-\clearpage
+
 \subsection{HDFS - Hadoop Distributed File System}
 HDFS is the file system of Hadoop. It stores file system metadata and application data separately. The dedicated server that stores metadata is the NameNode. Application data is stored on other servers (DataNodes). These servers are connected and they communicate using TCP-based protocols \cite{Shvachko:2010:HDF:1913798.1914427}. 
 
@@ -179,8 +179,7 @@ The traditional way to execute MapReduce operations is that the users specify th
 
 Although, the Hadoop MapReduce framework is written in Java, with the help of Streaming API we can create Map and Reduce functions in any languages.
 
-MapReduce gives us a solution for many big data problems. However, for some scenarios, MapReduce is not the ideal choice: \eg real-time analysis. In Hadoop 1.0 we could not use components other than MapReduce (for example Apache Storm which is ideal for real-time computation). The desire for utilizing the potential provided by the distributed file system (HDFS) in other solutions has grown. YARN provides a solution to fulfill this claim.
-\clearpage \subsection{Yarn \cite{YARN}}
+MapReduce gives us a solution for many big data problems. However, for some scenarios, MapReduce is not the ideal choice: \eg real-time analysis. In Hadoop 1.0 we could not use components other than MapReduce (for example Apache Storm which is ideal for real-time computation). The desire for utilizing the potential provided by the distributed file system (HDFS) in other solutions has grown. YARN provides a solution to fulfill this claim. \subsection{Yarn \cite{YARN}}
 \subsubsection*{Hadoop 1.0 resource management}
 Previous to Hadoop 2.0, a single JobTracker had the responsibility to monitor the resources and distribute the MapReduce jobs for the DataNodes and monitor these jobs. 
 
@@ -226,7 +225,7 @@ The ResourceManager is divided into two main components: Scheduler and Applicati
 \end{itemize}
 
 \begin{figure}[H]
-	\includegraphics[width=120mm, keepaspectratio]{figures/yarn.png}
+	\includegraphics[width=110mm, keepaspectratio]{figures/yarn.png}
 	\centering
 	\caption*{Yarn architecture}
 	\centering

@@ -190,7 +190,67 @@ To do this, I made a function (printResultToCSV) which will parse the given stri
 
 
 \subsection{How HiveServer2 uses memory}
-I have the code to measure the memory of Hive and get anget a general picture of the usage at certain phases. With this I am able to get a better understanding when and why memory goes high. I would like to get an answer to these querstions: How does the number of joins increase the memory? Which type of query generates a lot of memory usage: union, group by? If we increase the number of partitions, how it effects the heap size? In this section these questions will be answered.
+I have the code to measure the memory of Hive and get a general picture of the usage at certain phases. With this, I am able to get a better understanding when and why memory goes high. I would like to get an answer to these questions: How does the number of joins increase the memory? Which type of query generates a lot of memory usage: union, group by? If we increase the number of partitions, how it affects the heap size? In this section, these questions will be answered.
 
 The first step is to create a managed table where I will run my queries in the future. Hive faces memory problems when we have a highly partitioned table. I decided that for the first run, 20 000 partitions will be enough. 
 
+The second step was to create queries which will be submitted to Hive. The first question was how the number of joins affects memory? To answer it, I have created queries with an increasing number of joins included. I used self-joins and only increased the number to three. The pattern was clear for only four measures: a simple select query without join operator, and queries with one, two and three. From the output of my parsed CSV file, I generated the following chart that shows the memory increase.
+
+\begin{figure}[H]
+	\includegraphics[width=150mm, keepaspectratio]{figures/hs2_joins_memory.png}
+	\centering
+	\caption{Heap size with increasing number of joins}
+\end{figure}
+
+\noindent Queries run with their color in the chart:
+\begin{itemize}
+	\item select * from tablename (\textcolor{blue}{\rule{2 cm}{2pt} })
+	\item select * from tablename t1 join tablename t2 on t1.id=t2.id (\textcolor{orange}{\rule{2 cm}{2pt} })
+	\item select * from tablename t1 join tablename t2 on t1.id=t2.id join tablename t3 on t2.id=t3.id (\textcolor{yellow}{\rule{2 cm}{2pt} })
+	\item select * from tablename t1 join tablename t2 on t1.id=t2.id join tablename t3 on t2.id=t3.id join tablename t4 on t3.id=t4.id (\textcolor{green}{\rule{2 cm}{2pt} })
+\end{itemize}
+
+We can see that the memory change caused by the number of join operators is negligible, only around 20 Megabytes per join. The results were as expected: the memory increased significantly when HiveServer2 connected to the MetaStore and asked for metadata. During physical optimization, Hive loaded metadata to memory including partition metadata. In a highly partitioned table, this size is notable. Although real queries submitted to Hive by users are much more complicated and contains multiple tables, the model will be quite similar: heap memory will rise when metadata is loaded.
+
+I also wanted to see the memory effects of \textit{group by} and  \textit{union all} operations. I ran 5 more queries including these but did not find anything notable. The pattern remained the same: see the chart below. 
+
+\begin{figure}[H]
+	\includegraphics[width=150mm, keepaspectratio]{figures/hs2_memory.png}
+	\centering
+	\caption{Heap size when running various type of queries}
+\end{figure}
+
+I came to the conclusion that for a single connection to HiveServer2, the most important factor that increases heap size is the number of partitions in tables, so I decided to continue my investigation in that area. 
+
+\subsection{Memory consumption of partitions}
+A well-known issue in Hive is, if we have a highly partitioned table, the memory goes really high in HiveServer2. As a first step, I wanted to recreate the issue. I created tables with an increasing number of partitions: 200, 2000, 5000, 20000 and 100000 partitions. For each table, I executed the same query which contains a simple select with a self-join. During this, I measured the memory and created a heap dump after the semantic analyzer phase of the compilation. At this stage, the partitions are already loaded so I can analyze how much these objects exactly reserve. To get this information, I analyzed the heap dumps with VisualVM and filtered for the Partition objects. The pattern we can observe was as expected, but I the size of the heap reserved by these objects were smaller than I previously anticipated.
+
+\noindent From the heap dumps I have found that mainly three kind of objects reserve the memory due to partitions, so I will focus on these objects: 
+\begin{enumerate}
+	\item hive.ql.metadata.Partitions
+	\item hive.metastore.api.Partition
+	\item hive.ql.plan.PartitionDesc
+\end{enumerate}
+
+\begin{table}[H]
+	\begin{tabular}{|l|l|l|l|l|}
+		\hline
+		& \textbf{\begin{tabular}[c]{@{}l@{}}ql.metadata.\\ Partitions\end{tabular}} & \textbf{\begin{tabular}[c]{@{}l@{}}metastore.api.\\ Partition\end{tabular}} & \textbf{\begin{tabular}[c]{@{}l@{}}ql.plan.\\ PartitionDesc\end{tabular}} & \textbf{Sum} \\ \hline
+		\textbf{200 partitions}    & 300 Kb                                                                     & 288 Kb                                                                      & 108 Kb                                                                    & 696 Kb       \\ \hline
+		\textbf{2000 partitions}   & 3057 Kb                                                                    & 2946 Kb                                                                     & 1110 Kb                                                                   & 7113 Kb      \\ \hline
+		\textbf{5000 partitions}   & 7988 Kb                                                                    & 7709 Kb                                                                     & 2793 Kb                                                                   & 18490 Kb     \\ \hline
+		\textbf{20000 partitions}  & 29999 Kb                                                                   & 28879 Kb                                                                    & 3173 Kb                                                                   & 62051 Kb     \\ \hline
+		\textbf{100000 partitions} & 165002 Kb                                                                  & 158841 Kb                                                                   & 60531 Kb                                                                  & 384374 Kb    \\ \hline
+	\end{tabular}
+\caption{Memory of partitions}
+\end{table}
+
+\begin{figure}[H]
+	\includegraphics[width=150mm, keepaspectratio]{figures/partitions_chart.png}
+	\centering
+	\caption{Reserved memory by partitions}
+\end{figure}
+
+As we see, for 100.000 partitions the reserved memory is aroung 385 Megabytes. Before taking the samples, I expected higher memory consumption. However, with a little investigation I found that the memory waste around partitions was already somewhat decreased \cite{hive-partitions}. PartitionDesc objects has a java.util.Properties field. These Properties fields in the PartitionDesc most often are the same. Interning these saves a big amount of memory. In a later section, I will write more about the interning solution because it gave me an idea to fix another memory related issue.
+
+However the memory reserved by partitions is still high enough, so I decided to take a look at the heap dumps and try to find wastes or problems that affects memory usage.
