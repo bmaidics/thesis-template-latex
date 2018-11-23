@@ -253,4 +253,171 @@ A well-known issue in Hive is, if we have a highly partitioned table, the memory
 
 As we see, for 100.000 partitions the reserved memory is aroung 385 Megabytes. Before taking the samples, I expected higher memory consumption. However, with a little investigation I found that the memory waste around partitions was already somewhat decreased \cite{hive-partitions}. PartitionDesc objects has a java.util.Properties field. These Properties fields in the PartitionDesc most often are the same. Interning these saves a big amount of memory. In a later section, I will write more about the interning solution because it gave me an idea to fix another memory related issue.
 
-However the memory reserved by partitions is still high enough, so I decided to take a look at the heap dumps and try to find wastes or problems that affects memory usage.
+However the memory reserved by partitions is still high enough, so I decided to take a look at the heap dumps and try to find wastes or problems that affects memory.
+
+\subsection{Where does the memory go?}
+I analyzed the heap dump generated after the semantic analyzer phase when self-joining a table with 100000 partitions. It showed an interesting fact: 47.1\% (~853 Megabytes) of retained memory is reserved by Strings. Retained means, that if the Garbage Collector frees them, we win that amount of memory. 
+
+\begin{figure}[H]
+	\includegraphics[width=150mm, keepaspectratio]{figures/string_memory.png}
+	\centering
+	\caption{Memory reserved by Strings}
+\end{figure}
+
+We also see in the above image that \textit{hadoop.fs.Path} objects reserve 792 Megabytes. It seems too much considering that we only speak about the location of a file in the filesystem. As a next step, I looked inside the Path objects to see if this is a waste or not.
+
+\subsubsection{Memory waste in HDFS Path}
+\begin{figure}[H]
+	\includegraphics[width=150mm, keepaspectratio]{figures/path_memory.png}
+	\centering
+	\caption{Inside of a Path}
+\end{figure}
+
+In Path objects, we store the location in a \textit{java.net.URI} object. Its internal representation seems really wasteful. As we see, URI stores a path in 3 different Strings. The Strings are almost the same: for example the string field inside the URI contains the scheme, the path field does not, and this is the only difference \etc. We can ask ourselves: is it really necessary?
+
+To determine this we need to inspect the Path.java source code. URIs are always created the same way: we pass four String parameters to the constructor of the URI class: scheme, authority, path, and fragment. In the code below the null parameter represents the query part of a URI. Passing null means that we do not need that value.
+
+\begin{lstlisting}
+	newUri = new URI(scheme, authority , path, null, fragment);
+\end{lstlisting}
+
+To summarize, the internal representation of the URIs clearly seems like a waste of memory. So I started to think of an alternative solution to replace these URI objects and save around 66\% of memory for each Path. 
+
+\section{Fixing memory waste of URIs - HDFS-13752}
+The duplication comes from the \textit{java.net.URI} objects so the first thing that came to my mind was to replace this with a more memory efficient implementation in the Path.java class. As a first approach, I created a Jira ticket in the corresponding Apache site to report the issue \cite{hdfs-path}. 
+
+The community agreed that the way URIs store these paths is a waste, and could be stored more efficiently. However, many other classes use these URIs. The Path class has a public \textit{toURI} function which returns the URI representation of the path. Obviously, this cannot be removed because others are depending on it. I found three possible solutions to get rid of this memory overhead.
+
+\begin{itemize}
+	\item Keep the URI field with only having a WeakReference to it, and store the 4 parts of the Path in seperate fields
+	\item Keep the URI field with only having a SoftReference to it, and store the 4 parts of the Path in seperate fields
+	\item Remove the URI field completely and store those parts of the URI that we really use in separate Strings
+\end{itemize}
+
+\subsection{Solution 1: WeakReference}
+A WeakReferenced object works in a way, that if the object is only weakly reachable (its only reference is a WeakReference), it will not prevent the object to be garbage collected. We would have a WeakReference to the URI and when the GC runs it can collect the URIs if iwe do not have a strong reference to it. 
+
+When someone wants to get the URI representation of the path and calls the \textit{toURI} function, we need to check if the URI exists through the WeakReference or not. If it exists we can just get it because we have a WeakReference to it. If it does not, we need to recreate the URI from its parts. 
+
+\subsection{Solution 2: SoftReference}
+Using SoftReference would be a more conservative solution. If the Garbage Collector finds an object that is only softly reachable, it does not dump the object instantly. An object with a SoftReference will only be collected at memory demand. This way before an Out Of Memory error is thrown, the GC can free all URIs. If the GC collected the URI we would do the same as mentioned before: recreate the URI from the stored parts when needed. 
+
+\subsection{Solution 3: On demand URI creating}
+A possible solution is to remove the URI completely and only keep 4 parts of the Path which are used: scheme, authority, path and fragment. This way we can immediately win around 66\% of memory. The only drawback is that we always have to recreate the URI every time the toURI method is called and this might be expensive CPU-wise.
+
+\begin{figure}[H]
+	\includegraphics[width=150mm, keepaspectratio]{figures/path_before_after.png}
+	\centering
+	\caption{Memory save of Paths}
+\end{figure}
+
+\subsection{Conclusion}
+For the second thought, I realized that using WeakReference would not be the best decision. It would almost be the same as creating the URI on demand, since whenever the GC runs, it will collect the URIs immediately and when toURI is called we would have to recreate it anyway. The only way to decide which solution might be the best is to measure the performance of both approach. 
+
+I also analyzed the code base of Hadoop to see how \textit{Path.toUri} method is usually used. Most often we just want to ask for certain parts of the Path object and not really using the URI itself. For example: \textit{pathObject.toUri().getPath()} to get the path or \textit{pathObject.toUri().getScheme()} to get the scheme. Considering only this, solution 3 would be the most effective, since we are able to get the path/scheme/authority or fragment directly from the Path object and we do not need to first transform it to an URI and than ask for the value we need. 
+
+\subsection{A simple performance test for toURI}
+I created a really simple test, to decide which solution would solve the issue without a significant CPU overhead. 
+
+I tested the CPU usage of the toUri() method, analyzing the different solutions: I created 1.000.000 Path objects (of course this is not a real use case, but it can be a good estimation as the first approach). See the results in the table below (3. row). I’ve also measured the memory effects of the changes. 
+
+\noindent The code I used for testing:
+\begin{lstlisting}
+long startTime = System.nanoTime();
+for(int i=0; i<1000000; i++){
+	paths[i].toUri().getPath();
+}
+long estimatedTime = System.nanoTime() - startTime;
+\end{lstlisting}
+
+\begin{table}[H]
+	\begin{tabular}{|l|l|l|l|}
+		\hline
+		& \textbf{Original} & \textbf{\begin{tabular}[c]{@{}l@{}}SoftReference \\ (solution 2)\end{tabular}} & \textbf{\begin{tabular}[c]{@{}l@{}}New URI \\ (solution 3)\end{tabular}} \\ \hline
+		\textbf{Memory of the Paths}     & 608 MB            & 664 MB                                                                         & 238 MB                                                                   \\ \hline
+		\textbf{Time of the toURI calls} & 0.12973 s         & 0.04142 s                                                                      & 1.29133 s                                                                \\ \hline
+	\end{tabular}
+\centering
+\caption{Results of the test}
+\end{table}
+
+The results showed that using SoftReference has a bit of memory overhead because apart from the URI itself, we need to store the SoftReferences which require heap space as well. Thus, it would only be a save if the heap is almost full, other than that we it would reserve even more memory. The time of toURI calls might be deceptive. Calling \textit{toURI} method only once is slower than with the original solution and we do not use the method as in the example above. 
+
+Looking into the results of the third possible solution, the benefits are clear memory-wise. However, the time of the toURI calls do not look so promising. The CPU time is almost 10x bigger than with the original approach. But if we take into account other factors, not just the plain CPU time, the overhead might not be that big. If the memory of the paths are reduced, the GC can work much faster, so smaller GC pauses will occur. Also, these Path objects passed through the interface of Hadoop in both direction. For example, NameNode gives the location of files in the format of Paths and Hive passes these objects to Hadoop as well. Considering these, my change would be possibly beneficial for transfering data through the network: Passing objects which are smaller is obviously faster. 
+
+An additional factor that should be considered is that if we remove the \textit{toUri} call whenever we want to get the values of path, scheme, authority or fragment, we can improve the performance of the original solution, since we can get those directly. Instead of \textit{Path.toUri().getPath() } we can just say \textit{Path.getPath()}.
+
+To test this theory, I created a simple test. The times of 1.000.000 toUri().getPath() calls:
+\begin{itemize}
+	\item Original: 0.143235527 s
+	\item Solution 3 if Path.toUri().getPath() staying: 1.316882214 s
+	\item Solution 3 with only Path.getPath(): 0.004373138 s
+\end{itemize}
+
+With the results of my test, I decided to choose solution 3, which may be the simplest fix: remove the URI field completely and if someone needs it, create on demand from the path, scheme, authority and fragment parts.
+
+\subsection{Performance test on a cluster}
+As a next step, I configured a cluster to see if my change would affect CPU significantly. The cluster I created had 4 nodes and only HDFS, YARN and HIVE were installed. I generated the below HDFS directory structure to test the performance of my fix. The "perftest" directory contains 100 folders, each contains 1000 other folders with one txt file. The code I used for testing can be found in the Jira ticket I reported \cite{hdfs-path} (HDFS-13752.003.patch).
+
+\begin{figure}[H]
+	\includegraphics[width=125mm, keepaspectratio]{figures/directory_structure.png}
+	\centering
+	\caption{Directory structure of the test}
+\end{figure}
+
+For the tests, I used FileSystem shell to interact with the HDFS directly. I choosed one shorter and one longer running operation for measuring the CPU time. The values in the tables are in millisecond.
+
+\subsubsection{Listing files recursively}
+The command used:  \textit{hdfs dfs -ls -R /user/perftest}
+
+\begin{table}[H]
+	\begin{tabular}{|l|l|l|l|l|l|l|}
+		\hline
+		& \textbf{M1} & \textbf{M2} & \textbf{M3} & \textbf{M4} & \textbf{M5} & \textbf{Avg} \\ \hline
+		\textbf{Original} & 42651    & 38136    & 40183    & 41749    & 36963    & 39936     \\ \hline
+		\textbf{New URI}  & 41762    & 39219    & 38800    & 37315    & 37719    & 38963     \\ \hline
+	\end{tabular}
+\centering
+\caption{CPU time of a recursive listing}
+\end{table}
+\subsubsection{Changing the replication factor of a file}
+The command used:  \textit{hdfs dfs -setrep -w 3 /user/perftest}
+
+\begin{table}[H]
+	\begin{tabular}{|l|l|l|l|l|l|l|}
+		\hline
+		& \textbf{M1} & \textbf{M2} & \textbf{M3} & \textbf{M4} & \textbf{M5} & \textbf{Avg} \\ \hline
+		\textbf{Original} & 172240      & 179050      & 193963      & 189105      & 171446      & 181161       \\ \hline
+		\textbf{New URI}  & 185523      & 169111      & 171326      & 171451      & 170389      & 173560       \\ \hline
+	\end{tabular}
+\centering
+\caption{CPU time of a replication factor changing}
+\end{table}
+
+\subsubsection{Analyzing the results}
+Seeing the results I think there is no big performance difference. The new solution is even a little bit faster. A possible explanation for this is that I removed several \textit{toUri()} calls inside the Path class, because we store the Path, Scheme, Authority and Fragment in the Path object. These can also be done outside of the Path class. Another explanation can the network improvement mentioned before or even the decrease of the GC pauses. Or it may only be just the inaccuracy of the measurement.
+
+\subsection{Effects of the change in Path}
+After publishing the results to the Apache HDFS Jira, I tried to investigate if the change would be really beneficial. These Path objects can be found in every component that uses Hadoop, like Hive, Impala, HBase \etc and used widely everywhere in the code. As a consequence of this, a little CPU overhead can even cause a big performance loss so the patch needs to be tested throughly. 
+
+If this little change has some possibility to decrease the performance significantly, would it really benefit the components? I did an investigation to see if this issue is real and what would it fixed. Based on the results, my answer is: yes. The following issues was partly or entirely caused by the size of memory these Path objects reserve, so reducing the size with 66\% may solve or help these problems.
+
+\subsubsection{Hive MetaStore OOM}
+During my investigation I found a HMS memory issue in production use of Hive. The MetaStore server crashed due to an Out Of Memory error. The following heap dump was created before the OOM. Here 9.743 Gigabytes of memory was used by \textit{fs.Path} objects.
+
+\begin{figure}[H]
+	\includegraphics[width=150mm, keepaspectratio]{figures/hms_heapdump.png}
+	\centering
+	\caption{HMS heap dump before OOM}
+\end{figure}
+
+\subsubsection{Hive on Spark memory issue}
+Stress testing of HoS (Hive with Spark execution engine) has revealed that we have memory issues when running with a high value of \textit{spark.executor.cores}. The overhead is mainly introduced by loading multiple copies of HiveConf (Hive configuration object) and there is a significant overhead when loading lots of Path objects too. In the next chapter I will focus on the multiple HiveConf issue as well.
+
+\subsubsection{"Small files problem" in HiveServer2}
+HS2 has a so called "small files problem". Something like \textit{create external table} with lots of small files in the  HDFS directory of the table causes HiveServer2 to load the HDFS paths of the files into memory. If we have millions of small files (which is not that rare), these paths can use Gigabytes of heap memory. Hive does a \textit{listFiles} that returns all the Paths, to determine file permissions \etc. So create table hangs and other queries wait a LOT.
+
+\subsubsection{Apache Impala's solution for the problem}
+Apache Impala also faced problems caused by the size of memory used by the Paths. Impala is a query engine on top of Hadoop, similar to Hive. They already solved this problem on their side. Impala has a \textit{HdfsPartitionLocationCompressor.java} class which they use to solve exactly this problem. I also thought of the idea to solve the issue in Hive, however for a long term, it may not be the most desirable strategy. Hive would have to always convert the Paths whenever it passes them to Hadoop (Impala does this). I think if the problem can be solved in  Hadoop - where it comes from - without a performance overhead, it should be done there. My task is to give the community a proof that CPU overhead will not happen because of the memory fix. 
+
+\subsection{Benchmarking on a data center cluster}
