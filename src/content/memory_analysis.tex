@@ -421,3 +421,70 @@ HS2 has a so called "small files problem". Something like \textit{create externa
 Apache Impala also faced problems caused by the size of memory used by the Paths. Impala is a query engine on top of Hadoop, similar to Hive. They already solved this problem on their side. Impala has a \textit{HdfsPartitionLocationCompressor.java} class which they use to solve exactly this problem. I also thought of the idea to solve the issue in Hive, however for a long term, it may not be the most desirable strategy. Hive would have to always convert the Paths whenever it passes them to Hadoop (Impala does this). I think if the problem can be solved in  Hadoop - where it comes from - without a performance overhead, it should be done there. My task is to give the community a proof that CPU overhead will not happen because of the memory fix. 
 
 \subsection{Benchmarking on a data center cluster}
+The patch would effect every part of Hadoop, so a thorough benchmark is needed. The performance tests run on a data center cluster with Hadoop 3.0.0 for more than a month. From 13 September to 25 September without my patch, from 26 September to 19 October with my patch. The following charts will show the results for some test cases. On these diagrams, the values before the red line are without my patch and after the red line are the values including my patch. I created several diagrams to show the full result to the community. I will only include a part of them here, the full document can be found on the Jira ticket (HDFSbenchmark.pdf) \cite{hdfs-path}.
+
+\noindent Parameters of the benchmarks: 
+\begin{itemize}
+	\setlength{\itemsep}{1pt}
+	\item Number of worker nodes: 7
+	\item Dataset size per node: 1000 GB
+	\item Number of mappers per node: 80
+	\item Filesize for TestDFSIO: 16 GB
+	\item Number of files for NNBenchmark: 50000
+\end{itemize}
+
+\subsubsection{TeraSort benchmark}
+"TeraSort reads the input data and uses MapReduce to sort them." \cite{terasort}
+
+\begin{figure}[H]
+	\includegraphics[width=125mm, keepaspectratio]{figures/terasort_cpu.png}
+	\centering
+	\caption{TeraSort Average CPU time}
+\end{figure}
+\begin{figure}[H]
+	\includegraphics[width=125mm, keepaspectratio]{figures/terasort_map.png}
+	\centering
+	\caption{TeraSort Map time}
+\end{figure}
+\subsubsection{TeraValidate benchmark}
+"TeraValidate validates the sorted output to ensure that the keys are sorted within each file. If anything is wrong with the sorted output, the output of this reducer reports the problem." \cite{terasort}
+
+\begin{figure}[H]
+	\includegraphics[width=125mm, keepaspectratio]{figures/teravalidate_job.png}
+	\centering
+	\caption{TeraValidate Job time}
+\end{figure}
+\begin{figure}[H]
+	\includegraphics[width=125mm, keepaspectratio]{figures/teravalidate_reduce.png}
+	\centering
+	\caption{TeraValidate Reduce time}
+\end{figure}
+
+\subsubsection{TestDFSIO}
+TestDFSIO is a benchmark for measuring the capacity of HDFS for reading and writing data. It is helpful to discover performance bottlenecks.
+
+\begin{figure}[H]
+	\includegraphics[width=125mm, keepaspectratio]{figures/dfsio_job.png}
+	\centering
+	\caption{TestDFSIO Job time}
+\end{figure}
+
+\subsubsection{NNBench - NameNode stress test}
+This benchmark generates a lot of HDFS requests for putting a high HDFS management stress on the NameNode. The benchmark can create, read, rename and delete files on HDFS.
+
+\begin{figure}[H]
+	\includegraphics[width=125mm, keepaspectratio]{figures/nn_exec.png}
+	\centering
+	\caption{NameNode execution time of open\_read operation}
+\end{figure}
+\begin{figure}[H]
+	\includegraphics[width=125mm, keepaspectratio]{figures/nn_latency.png}
+	\centering
+	\caption{NameNode latency of open\_read operation}
+\end{figure}
+
+\subsection{Result of the benchmark, further tasks }
+Looking into the charts and comparing the results of the base (before the red line) and the results with the patch included (after the red line), we cannot see any significant difference in CPU time, so this benchmark gave a positive outcome. 
+
+Since the fix would affect many other components, more benchmarks are still needed to be certain that this will not decrease the perfomance of Hadoop. Hive benchmark is currently in progress to see if any performance bottleneck is introduced on the "client" side by changing the implementation of Paths.
+
