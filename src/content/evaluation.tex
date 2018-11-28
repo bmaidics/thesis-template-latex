@@ -1,0 +1,20 @@
+\chapter{Evaluation}
+In this thesis, I learned about the Apache Hadoop ecosystem, especially Hive and the memory constraints and issues it faces. I went through the lifecycle of a query and identified the main parts of compilation and execution. Using this information I provided measuring points to build a model about the memory usage of HiveServer2. I created a code for measuring memory usage automatically and generating heap dumps for later analysis.
+
+\section{Analyzing heap dumps}
+During my work, I analyzed many heap dumps. The first step to understand these, was to get a better insight into Java memory model and management. The model was not as simple as I first thought. Java distinguishes young and old memory and these are further divided into different parts. I also got to know many tools, that I used for analysis to make the detection of memory problems easier. 
+
+\section{Results, open issues}
+With the measure tool I created, I was able to detect the phases when Hive's memory usage increases and investigate the reason behind those. I identified two memory wastes and provided ideas and implementation for fixing those. I also experienced the difficulties of such widely used projects.
+
+\subsection{HDFS-13752: Path memory waste}
+One of the issues I identified was the duplication of Strings in HDFS. Although, getting rid of the URIs would provide serious memory benefits for Hive and possibly other components, increasing the complexity of such a low level and ubiquitous part of the platform can have unexpected and bad results. 
+
+However, benchmarking HDFS with and without my patch gave us a positive result: no significant overhead can be detected. Still, the community is very careful with the patch, since it touches the very fundamental of the distributed file system (basically how we store the paths of the files in it) and it is hard to detect the real effects of the change. Currently, Hive performance tests are planned, but gaining access to a larger cluster where benchmarks can run is quite difficult. In the future, I will work on this issue and try to push it in Hadoop, even if the outcome may not be a success.
+
+\subsection{HIVE-20760: Duplication of HiveConfs}
+The other memory issue I found was caused by the presence of multiple and nearly identical configuration objects, called HiveConf. These configuration values are basically stored in a HashTable. HiveConfs are created regularly in the code: for example, every session gets its own configuration. Hive on Spark (HoS) also has about 10\% of memory overhead due to the duplication of HiveConfs. 
+
+My idea was to divide the Properties into two parts, so different HiveConfs should use the same "base" if those are identical. This way we can prevent creating different objects with the same content. Implementing my solution caused 40\% memory win for every HiveConf. Testing is still needed to cover all scenarios a configuration object can be used, and if the patch is ready, the community can review it.
+
+I also learned the basics of working on a huge project like Apache Hive and explore its codebase or debug errors. Working on an open source project also provided many benefits. I gained knowledge from reviews and feedbacks gave by far more experienced people around the world. In the future, I am planning to continue my contribution to Hive and I will try to improve one of the most commonly used open source data warehousing solutions.
