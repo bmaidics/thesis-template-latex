@@ -283,7 +283,7 @@ To determine this we need to inspect the Path.java source code. URIs are always 
 
 To summarize, the internal representation of the URIs clearly seems like a waste of memory. So I started to think of an alternative solution to replace these URI objects and save around 66\% of memory for each Path. 
 
-\section{Fixing memory waste of URIs - HDFS-13752}
+\chapter{Fixing memory waste of URIs - HDFS-13752}
 The duplication comes from the \textit{java.net.URI} objects so the first thing that came to my mind was to replace this with a more memory efficient implementation in the Path.java class. As a first approach, I created a Jira ticket in the corresponding Apache site to report the issue \cite{hdfs-path}. 
 
 The community agreed that the way URIs store these paths is a waste, and could be stored more efficiently. However, many other classes use these URIs. The Path class has a public \textit{toURI} function which returns the URI representation of the path. Obviously, this cannot be removed because others are depending on it. I found three possible solutions to get rid of this memory overhead.
@@ -293,7 +293,7 @@ The community agreed that the way URIs store these paths is a waste, and could b
 	\item Keep the URI field with only having a SoftReference to it, and store the 4 parts of the Path in seperate fields
 	\item Remove the URI field completely and store those parts of the URI that we really use in separate Strings
 \end{itemize}
-
+\section{Solution ideas}
 \subsection{Solution 1: WeakReference}
 A WeakReferenced object works in a way, that if the object is only weakly reachable (its only reference is a WeakReference), it will not prevent the object to be garbage collected. We would have a WeakReference to the URI and when the GC runs it can collect the URIs if iwe do not have a strong reference to it. 
 
@@ -316,7 +316,7 @@ For the second thought, I realized that using WeakReference would not be the bes
 
 I also analyzed the code base of Hadoop to see how \textit{Path.toUri} method is usually used. Most often we just want to ask for certain parts of the Path object and not really using the URI itself. For example: \textit{pathObject.toUri().getPath()} to get the path or \textit{pathObject.toUri().getScheme()} to get the scheme. Considering only this, solution 3 would be the most effective, since we are able to get the path/scheme/authority or fragment directly from the Path object and we do not need to first transform it to an URI and than ask for the value we need. 
 
-\subsection{A simple performance test for toURI}
+\section{A simple performance test for toURI}
 I created a really simple test, to decide which solution would solve the issue without a significant CPU overhead. 
 
 I tested the CPU usage of the toUri() method, analyzing the different solutions: I created 1.000.000 Path objects (of course this is not a real use case, but it can be a good estimation as the first approach). See the results in the table below (3. row). I’ve also measured the memory effects of the changes. 
@@ -356,7 +356,7 @@ To test this theory, I created a simple test. The times of 1.000.000 toUri().get
 
 With the results of my test, I decided to choose solution 3, which may be the simplest fix: remove the URI field completely and if someone needs it, create on demand from the path, scheme, authority and fragment parts.
 
-\subsection{Performance test on a cluster}
+\section{Performance test on a cluster}
 As a next step, I configured a cluster to see if my change would affect CPU significantly. The cluster I created had 4 nodes and only HDFS, YARN and HIVE were installed. I generated the below HDFS directory structure to test the performance of my fix. The "perftest" directory contains 100 folders, each contains 1000 other folders with one txt file. The code I used for testing can be found in the Jira ticket I reported \cite{hdfs-path} (HDFS-13752.003.patch).
 
 \begin{figure}[H]
@@ -367,7 +367,7 @@ As a next step, I configured a cluster to see if my change would affect CPU sign
 
 For the tests, I used FileSystem shell to interact with the HDFS directly. I choosed one shorter and one longer running operation for measuring the CPU time. The values in the tables are in millisecond.
 
-\subsubsection{Listing files recursively}
+\subsection{Listing files recursively}
 The command used:  \textit{hdfs dfs -ls -R /user/perftest}
 
 \begin{table}[H]
@@ -380,7 +380,7 @@ The command used:  \textit{hdfs dfs -ls -R /user/perftest}
 \centering
 \caption{CPU time of a recursive listing}
 \end{table}
-\subsubsection{Changing the replication factor of a file}
+\subsection{Changing the replication factor of a file}
 The command used:  \textit{hdfs dfs -setrep -w 3 /user/perftest}
 
 \begin{table}[H]
@@ -394,15 +394,15 @@ The command used:  \textit{hdfs dfs -setrep -w 3 /user/perftest}
 \caption{CPU time of a replication factor changing}
 \end{table}
 
-\subsubsection{Analyzing the results}
+\subsection{Analyzing the results}
 Seeing the results I think there is no big performance difference. The new solution is even a little bit faster. A possible explanation for this is that I removed several \textit{toUri()} calls inside the Path class, because we store the Path, Scheme, Authority and Fragment in the Path object. These can also be done outside of the Path class. Another explanation can the network improvement mentioned before or even the decrease of the GC pauses. Or it may only be just the inaccuracy of the measurement.
 
-\subsection{Effects of the change in Path}
+\section{Effects of the change in Path}
 After publishing the results to the Apache HDFS Jira, I tried to investigate if the change would be really beneficial. These Path objects can be found in every component that uses Hadoop, like Hive, Impala, HBase \etc and used widely everywhere in the code. As a consequence of this, a little CPU overhead can even cause a big performance loss so the patch needs to be tested throughly. 
 
 If this little change has some possibility to decrease the performance significantly, would it really benefit the components? I did an investigation to see if this issue is real and what would it fixed. Based on the results, my answer is: yes. The following issues was partly or entirely caused by the size of memory these Path objects reserve, so reducing the size with 66\% may solve or help these problems.
 
-\subsubsection{Hive MetaStore OOM}
+\subsection{Hive MetaStore OOM}
 During my investigation I found a HMS memory issue in production use of Hive. The MetaStore server crashed due to an Out Of Memory error. The following heap dump was created before the OOM. Here 9.743 Gigabytes of memory was used by \textit{fs.Path} objects.
 
 \begin{figure}[H]
@@ -411,16 +411,16 @@ During my investigation I found a HMS memory issue in production use of Hive. Th
 	\caption{HMS heap dump before OOM}
 \end{figure}
 
-\subsubsection{Hive on Spark memory issue}
+\subsection{Hive on Spark memory issue}
 Stress testing of HoS (Hive with Spark execution engine) has revealed that we have memory issues when running with a high value of \textit{spark.executor.cores}. The overhead is mainly introduced by loading multiple copies of HiveConf (Hive configuration object) and there is a significant overhead when loading lots of Path objects too. In the next chapter I will focus on the multiple HiveConf issue as well.
 
-\subsubsection{"Small files problem" in HiveServer2}
+\subsection{"Small files problem" in HiveServer2}
 HS2 has a so called "small files problem". Something like \textit{create external table} with lots of small files in the  HDFS directory of the table causes HiveServer2 to load the HDFS paths of the files into memory. If we have millions of small files (which is not that rare), these paths can use Gigabytes of heap memory. Hive does a \textit{listFiles} that returns all the Paths, to determine file permissions \etc. So create table hangs and other queries wait a LOT.
 
-\subsubsection{Apache Impala's solution for the problem}
+\subsection{Apache Impala's solution for the problem}
 Apache Impala also faced problems caused by the size of memory used by the Paths. Impala is a query engine on top of Hadoop, similar to Hive. They already solved this problem on their side. Impala has a \textit{HdfsPartitionLocationCompressor.java} class which they use to solve exactly this problem. I also thought of the idea to solve the issue in Hive, however for a long term, it may not be the most desirable strategy. Hive would have to always convert the Paths whenever it passes them to Hadoop (Impala does this). I think if the problem can be solved in  Hadoop - where it comes from - without a performance overhead, it should be done there. My task is to give the community a proof that CPU overhead will not happen because of the memory fix. 
 
-\subsection{Benchmarking on a data center cluster}
+\section{Benchmarking on a data center cluster}
 The patch would effect every part of Hadoop, so a thorough benchmark is needed. The performance tests run on a data center cluster with Hadoop 3.0.0 for more than a month. From 13 September to 25 September without my patch, from 26 September to 19 October with my patch. The following charts will show the results for some test cases. On these diagrams, the values before the red line are without my patch and after the red line are the values including my patch. I created several diagrams to show the full result to the community. I will only include a part of them here, the full document can be found on the Jira ticket (HDFSbenchmark.pdf) \cite{hdfs-path}.
 
 \noindent Parameters of the benchmarks: 
@@ -433,7 +433,7 @@ The patch would effect every part of Hadoop, so a thorough benchmark is needed. 
 	\item Number of files for NNBenchmark: 50000
 \end{itemize}
 
-\subsubsection{TeraSort benchmark}
+\subsection{TeraSort benchmark}
 "TeraSort reads the input data and uses MapReduce to sort them." \cite{terasort}
 
 \begin{figure}[H]
@@ -446,7 +446,7 @@ The patch would effect every part of Hadoop, so a thorough benchmark is needed. 
 	\centering
 	\caption{TeraSort Map time}
 \end{figure}
-\subsubsection{TeraValidate benchmark}
+\subsection{TeraValidate benchmark}
 "TeraValidate validates the sorted output to ensure that the keys are sorted within each file. If anything is wrong with the sorted output, the output of this reducer reports the problem." \cite{terasort}
 
 \begin{figure}[H]
@@ -460,7 +460,7 @@ The patch would effect every part of Hadoop, so a thorough benchmark is needed. 
 	\caption{TeraValidate Reduce time}
 \end{figure}
 
-\subsubsection{TestDFSIO}
+\subsection{TestDFSIO}
 TestDFSIO is a benchmark for measuring the capacity of HDFS for reading and writing data. It is helpful to discover performance bottlenecks.
 
 \begin{figure}[H]
@@ -469,7 +469,7 @@ TestDFSIO is a benchmark for measuring the capacity of HDFS for reading and writ
 	\caption{TestDFSIO Job time}
 \end{figure}
 
-\subsubsection{NNBench - NameNode stress test}
+\subsection{NNBench - NameNode stress test}
 This benchmark generates a lot of HDFS requests for putting a high HDFS management stress on the NameNode. The benchmark can create, read, rename and delete files on HDFS.
 
 \begin{figure}[H]
@@ -483,8 +483,238 @@ This benchmark generates a lot of HDFS requests for putting a high HDFS manageme
 	\caption{NameNode latency of open\_read operation}
 \end{figure}
 
-\subsection{Result of the benchmark, further tasks }
+\section{Result of the benchmark, further tasks}
 Looking into the charts and comparing the results of the base (before the red line) and the results with the patch included (after the red line), we cannot see any significant difference in CPU time, so this benchmark gave a positive outcome. 
 
 Since the fix would affect many other components, more benchmarks are still needed to be certain that this will not decrease the perfomance of Hadoop. Hive benchmark is currently in progress to see if any performance bottleneck is introduced on the "client" side by changing the implementation of Paths.
 
+\chapter{Another memory issue in Hive - HIVE-20760}
+It is known, that Hive memory depends on mainly two factors: one is the number of partitions in tables and the other one is the number of connections made to HiveServer2. In the first part of my work I focused on the number of partitions and found a way that would decrease the memory of HiveServer2 when our tables are highly partitioned. In this section I will try to get a better understanding what uses so much memory when multiple connections are made and see if the issue can be fixed or not. 
+
+\section{Memory of HS2 with multiple connections}
+HiveServer2 can serve multiple clients at the same time. Obviously, the resources needed for handling multiple connections is proportional with the number of client connected to the server. Let's see what uses memory in this scenario.
+
+I wanted to see the memory effect of the number of connections only, so I decided to analyze the memory before compilation and execution happens. This way I can get a clearer picture, since memory used by compilation or execution will not be presented, only the overhead of each connection. 
+
+For each connection made to Hive, a session is created. I use a bash script for simulating multiple clients connection to Hive locally. 
+
+\begin{lstlisting}
+#!/bin/sh
+for i in `seq 1 50`; 
+	do <location of beeline>/bin/beeline -u jdbc:hive2://localhost:10000 -n admin -p admin -e "select count(*) from people200;" 
+&done;	
+\end{lstlisting}
+
+In the body of the for loop, for each iteration I made a connection to HiveServer2 using Beeline command line client. As arguments, I provided the jdbc connection URL of HS2 (the default port HS2 is listening is 10000) and the username/password, which is admin/admin as a default value.
+
+With the previously mentioned measuring code, I created a heap dump after 50 connections were made to HS2 and sesssion were already created. The following figure shows the objects that use the most heap memory.
+
+\begin{figure}[H]
+	\includegraphics[width=150mm, keepaspectratio]{figures/hiveconf_memory.png}
+	\centering
+	\caption{Object with the most retained memory}
+\end{figure}
+
+For each session, an individual HiveConf object is created, which contains all the configuration properties of Hive. These configurations can easily contain thousands of values so the big heap memory is not that surprising. The first thing I recognized during the analyzis of the heap dump, is that each HiveConf object of a session use the same amount of memory. Thus, these objects cannot be that different from each other. If that is the case, why do we have a different one for every session?
+
+The HiveConf class is a descendant of the \textit{Configuration.java} class, that is inherited from Hadoop. The biggest memory of each HiveConf a private Properties field. The Properties class is a type of HashMap that only contains String keys and values. Looking into the Properties fields of each HiveConf confirmed my assumption: they have exactly the same values apart from a few properties.
+
+This inspired me to look more into the details. How these configuration objects are used? When we start Hive, Hadoop configuration properties are applied, and we read Hive's configuration file (hive-site.xml) and overlay those properties. After this, for each session we create a new HiveConf instance with copying the existing "base". This way sessions can add their own unique Properties to their configuration object. 
+
+It is important to notice that we rarely touch the "base" configurations. Usually the sessions add some Properties to it and the base configuration remains untouched. To get rid of the memory overhead, a possible solution would be to use the same Properties object for each HiveConf if the values in them are the same.
+
+\section{HIVE-20760: Reducing memory overhead due to multiple HiveConfs}
+I already saw a somewhat similar problem, when looking into the partition memory issues. PartitionDesc used exactly the same Properties object, and the solution for that was introducing CopyOnFirstWriteProperties class \cite{hive-partitions}. 
+
+It is a special subclass of Properties, designed to save memory when lots of identical Properties are created. The class uses interning to solve the problem: it has an interned Properties field which points to the same object for all instances that has identical contents. If any mutating method (\eg setProperties, put, clear) is called on the object, the content is copied to "this" instance, and we no longer use the interned object. 
+
+As a first idea, I thought that using this class would help. However, HiveConfs are used differently from PartitionDesc, and this solution was desinged for that. We often call mutating methods on the Properties field of HiveConf. Each session is able to add additional values to its configuration. Thus, other solution is needed to save memory in this scenario, since using CopyOnFirstWriteProperties immediately throws away the interned Properties if we add a new property to it.
+
+\subsection{Introducing HiveConfProperties class}
+My idea was to intern only the "base" Properties. When we create a HiveConf from an already existing one using its "copy constuctor", instead of creating a built in \textit{java.util.Properties} we will use a subclass of Properties. I named this class HiveConfProperties. 
+
+I designed HiveConfProperties to save memory caused by the many nearly individual HiveConfs. Right after we create a HiveConfProperties instance, from an already existing Properties, we can intern that. For interning, I used \textit{com.google.common.collect.Interner}. 
+
+\subsubsection{How interning works} 
+ When we have an object that we want to intern, we search for it in the "object pool" to see if there is already an object equal to the corresponding one. If we find one, we will use that in the future. If there is no object equal to the actual one then we put the object into the pool and then use it. Fortunately, there is already an existing implementation of this interning method in the Google Guava core java library.
+ 
+ \subsubsection{How HiveConfProperties works}
+ I divided the Properties object into two parts: an interned part, which contains the base Properties, and since we descend from \textit{the java.util.Properties}, we can use the "this" object to store properties as well.
+ 
+ \begin{figure}[H]
+ 	\includegraphics[width=100mm,keepaspectratio]{figures/hiveconf_solution.png}
+ 	\centering
+ 	\caption{How HiveConfProperties works}
+ \end{figure}
+
+\begin{lstlisting}
+private Properties interned;
+
+private Properties removed;
+private int duplicatedPropertiesCount;
+
+private static Interner<Properties> interner = Interners.newWeakInterner();
+
+public HiveConfProperties(Properties p) {
+	if(p != null) {
+		interned = interner.intern(p);
+	}
+	removed =  new Properties();
+	duplicatedPropertiesCount=0;
+}
+\end{lstlisting}
+
+The code above is responsible for creating a HiveConfProperties instance. It stores the interned (base) Properties in a private field. Right after we want to construct an instance, we intern the given Properties object. The process that \textit{interner.intern(...)} does is explained above. A null check is also a must when we create a new HiveConfProperties, since calling the constructor with null parameter is possible in the code. I found this possibility when I submitted the patch to Apache Hive Jira and "PreCommit" tests failed during the Jenkins build. The \textit{removed} and the \textit{duplicatedPropertiesCount} field is needed for the interning to work as expected. 
+
+If someone calls \textit{HiveConf.unset} funciton, \textit{Properties.remove} (this case \textit{HiveConfProperties.remove} will be called. If the property we want to remove is contained by the interned Properties object, we cannot remove it directly, because other HiveConfProperties may use it. To solve this issue, I introduced the \textit{removed} Properties field to store those values that should no longer be available. So if we want to get the value of a key, we first check if the key is in the \textit{removed} Properties: if the answer is yes, we will consider this property unavailable.
+
+Duplications can occur in my solution: if someone would like to set a property, that is already in the \textit{interned} field, we cannot override it there, so we should add it in the non-interned Properties to return the correct value. However, this way we will have two properties with the same content. Calculating the size of the HashMap will be inaccurate. For solving this issue, I created a counter field called \textit{duplicatedPropertiesCount} to store the number of the duplicates. Knowing this value will allow us to provide an accurate size. 
+
+Since HiveConfProperties is a subclass of \textit{java.util.Properties} and because of it subclass of \textit{java.util.HashTable}, I provided implementation of its methods.  \textit{hadoop.conf.Configuration} (base class of HiveConf) and \textit{HiveConf} only uses a subset of these functions, so I decided to implement only those, that can be invoked. For the other methods I will throw a \textit{NotImplementedException}. 
+
+\subsection{Overriden functions of Properties}
+\subsubsection{getProperty}
+\begin{lstlisting}
+@Override
+public String getProperty(String key) {
+	String property = super.getProperty(key);
+	if (property == null) {
+		if(interned != null && !removed.containsKey(key)) {
+			property = interned.getProperty(key);
+		}
+	}
+	return property;
+}
+\end{lstlisting}
+
+If non-interned (super) contains the key, return that value. If not, we need to check if it is not in the \textit{removed} Properties (still valid). If the value is valid, return it from the base (interned). \textit{getProperty(String key, String defaultValue)} and \textit{get} method from HashTable works the same way. 
+\subsubsection{setProperty}
+\begin{lstlisting}
+@Override
+public synchronized Object setProperty(String key, String value) {
+	if(interned != null && interned.containsKey(key) && !super.containsKey(key)) {
+		String internedValue = interned.getProperty(key);
+		if(internedValue.equals(value)) {
+			return internedValue;
+		}
+		duplicatedPropertiesCount++;
+	}
+	//If removed contains this key, and we want to set it, it is no longer "removed"
+	if(removed.containsKey(key)) {
+		removed.remove(key);
+	}
+	return super.setProperty(key, value);
+}
+\end{lstlisting}
+
+If interned already contains the property to be set, we need to set it in the non-interned Properties. However, this way we will have duplicates, since both Properties instance will contain the same value. Thus, to be able to give a correct size when needed, we need to count these duplicates. If we are setting a value, that had been removed previously, we need to "revalidate" the property. If the value is not changed, we should not set it in the non-interned Properties to avoid unnecessary duplicates. 
+
+\subsubsection{mergeProperties helper function}
+To override functions such as \textit{stringPropertyNames} or \textit{keySet} \etc I introduced a helper function. Since for these methods, we need values of the properties from both (non-interned and interned) objects, the helper method will merge the two parts into one Properties. This way we can just delegate the call to the merge Properties object. In the \textit{mergeProperties} I simply iterated through both parts and collected each HashTable entry (if not removed) and returned a new Properties instance. 
+
+Overriding for example the keySet function will look like this:
+\begin{lstlisting}
+@Override
+public Set<Object> keySet() {
+	return mergeProperties().keySet();
+}
+\end{lstlisting}
+
+We can do the same for all the functions where merging is needed: \textit{keys, entrySet, stringPropertyNames, toString \etc}
+
+\subsubsection{size}
+\begin{lstlisting}
+@Override
+public synchronized int size() {
+	if(interned != null) {
+		return super.size() + interned.size() - duplicatedPropertiesCount - removed.size();
+	}
+	return super.size();
+}
+\end{lstlisting}
+The size of HiveConfProperties is the size of interned + size of non-interned - \textit{duplicatedPropertiesCount}. We have to subtract the \textit{duplicatedPropertiesCount}, because duplicates can happen.Also we have to subtract the size of the removed Properties, since those had been removed.
+
+\subsubsection{containsKey, containsValue}
+\begin{lstlisting}
+@Override
+public synchronized boolean containsKey(Object key) {
+	if(interned != null) {
+		return !removed.containsKey(key) && (super.containsKey(key) || interned.containsKey(key));
+	}
+	return super.containsKey(key);
+}
+\end{lstlisting}
+A key or value is contained by a HiveConfProperties instance, if its removed field does not contain it and the interned or non-interned does.
+
+\subsubsection{remove}
+\begin{lstlisting}
+@Override
+public synchronized Object remove(Object key) {
+	if(interned != null) {
+		if (interned.containsKey(key)) {	
+			String v = interned.getProperty((String) key);
+			removed.setProperty((String) key, v);
+			return v;
+		}
+	}
+	return super.remove(key);
+}
+\end{lstlisting}
+We cannot remove the property from the interned Properties (other HiveConfs may use it). We store the value in the \textit{removed} Properties field and in the future the properties stored there will not be valid. If we would like to remove a value from the non-interned field, we can simply do that, since it will not affect any other HiveConfProperties instance.
+
+\subsubsection{equals}
+Maybe the most complicated method is the \textit{equals} inherited from the HashTable class. Deciding whether an object is equal to another or not should be fast. Merging the two parts can be slow if equals is used widely. Thus, I followed the way that HashTable's equals method works. It is possible to call equals on a HiveConfProperties object but giving a simple \textit{java.util.Properties}. The equals method should also work correctly in this scenario. I will not include the code for \textit{equals} method, because it is to big, and nothing complicated is done there, but the code can be found in the Jira for the issue \cite{hive-conf}.
+
+If other Properties object is a HiveConfProperties, with the help of \textit{instanceof} keyword we can decide whether the other Properties is a HiveConfProperties or not. If the answer is positive, we need to check its interned Properties object as well. As a first step we check their sizes. If they are not equal, we can return false immediately. If sizes are equal, first we will iterate through the non-interned Properties in the "this" object. For each HashTable entries we will check two things: if value is null in the entry, "other" HiveConfProperties should not contain the key, otherwise the two object cannot be the same, so we can return false. If value for the entry is not null, value from "this" should be equal to value from the other object. 
+
+If all entries from the non-interned Properties are contained by the other Properties object. We still need to check the same for this.interned Properties. The code will be the same expect, we will iterate through the entries of the interned Properties. 
+
+The code is simpler if the other object is not a HiveConfProperties. We do not need the check two parts. We can just iterate through the entries of the "other" Properties and do the same checks as mentioned before.
+
+\subsection{Applying the solution in HiveConf}
+HiveConf is a descendant of Configuration class, which comes from the Hadoop Common library. The properties field that is causing the memory overhead is also in the base class and its visibility is private. We have two options to resolve this:
+\begin{enumerate}
+	\item Change the visibility of properties field to protected, so in HiveConf we can change the type of the field to HiveConfProperties simply
+	\item Continue to use private visibility, and change the type of the field in HiveConf using reflection.
+\end{enumerate}
+
+Changing the visibility in Hadoop may not be the ideal design choice, since Hive should depend on Hadoop and not the other way around. I decided to change the type using reflection in Hive side. 
+
+\begin{lstlisting}
+try {
+	Field propertiesField = FieldUtils.getDeclaredField(HiveConf.class.getSuperclass(), "properties", true);
+	if(!(propertiesField.get(other) instanceof HiveConfProperties)) {
+		HiveConfProperties properties = new HiveConfProperties((Properties) propertiesField.get(this));
+		FieldUtils.writeField(this, "properties", properties, true);
+	}
+}  catch (IllegalAccessException e) {
+	e.printStackTrace();
+}
+\end{lstlisting}
+
+I used \textit{FieldUtils} class from \textit{commons-lang} library to access the properties field in the superclass and change reapply the Properties object wrapped in a HiveConfProperties.
+
+HiveConf has an additional Properties object called \textit{origProp}. The values contained by the \textit{origProp} objects for different HiveConfs are also very similar, so interning those as well would also remove some memory overhead. 
+
+\subsection{Memory win by the change}
+\begin{figure}[H]
+	\includegraphics[width=150mm, keepaspectratio]{figures/hiveconf_orig.png}
+	\centering
+	\caption{Before using HiveConfProperties}
+\end{figure}
+
+\subsection{Memory win by the change}
+\begin{figure}[H]
+	\includegraphics[width=150mm, keepaspectratio]{figures/hiveconf_interned.png}
+	\centering
+	\caption{After using HiveConfProperties}
+\end{figure}
+
+Comparing the heap dumps shows the benefits of interning the Properties in HiveConf. Without the use of HiveConfProperties one configuration object conaining 1910 properties used around 415 Kilobytes. With the use of HiveConfProperties it was reduced to 265 Kilobytes.It is nearly 40\% memory saved for each HiveConf. 
+
+When we use Hive on Spark running with a large number of cores per executor, we have about 10\% of memory overhead due to multiple HiveConfs . This can be reduced significantly using my solution. 
+
+\section{Future work around configuration objects}
+The issue I reported is  still ongoing, since tests are needed to see if my patch works correctly in every scenario. I also provided a test class, which needs to be expanded, to cover all the scenarios a Properties object can be used by HiveConf. 
+
+Hadoop also has an implementation of the Configuration class, called JobConf. These objects are also present in HS2 and causes memory overhead the same way as HiveConf does. There is an open source Jira that was intended to solve the duplication without getting \textit{ConcurrentModificationException}, but the memory problem was not resolved just prevented throwing the exception \cite{hive-jobconf}. The solution I provide for HiveConf could also be used for getting rid of the duplication in JobConf.
