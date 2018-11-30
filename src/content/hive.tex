@@ -78,7 +78,7 @@ The main components of Hive are the following \cite{Hive-paper}:
 	\caption{Hive architecture}
 \end{figure}
 
-Clients can connect to HiveServer2 using its Thrift Service. HS2 supports authentication of the clients using Kerberos or LDAP authentication. Hive Metastore server also supports Kerberos authentication for Thrift clients.
+Clients can connect to  using its Thrift Service. HS2 supports authentication of the clients using Kerberos or LDAP authentication. Hive Metastore server also supports Kerberos authentication for Thrift clients.
 
 Sentry is a role-based authorization module for Hadoop, so we can control the priviliges for authenticated users. Hive can use Sentry over an "authorization hook", which Sentry registers to Hive configuration file if secure cluster is enabled. 
 

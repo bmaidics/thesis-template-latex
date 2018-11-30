@@ -1,5 +1,5 @@
-\chapter{Hadoop basics}
-Apache Hadoop is an open source distributed framework for managing, processing  and storing a huge amount of data in clustered systems built from commodity hardware. All modules in Hadoop were designed with an assumption that hardware failures are frequent and should be automatically handled by the framework. One of the most important characteristics of Hadoop is that it partitions the data and computation across many hosts and executes computation in parallel close to the data it uses.  \cite{Hadoop-wiki}
+\chapter{Apache Hadoop}
+Apache Hadoop is an open source distributed framework for managing, processing and storing a huge amount of data in clustered systems built from commodity hardware. All modules in Hadoop were designed with an assumption that hardware failures are frequent and should be automatically handled by the framework. One of the most important characteristics of Hadoop is that it partitions the data and computation across many hosts and executes computation in parallel close to the data it uses.  \cite{Hadoop-wiki}
 
 \noindent The base of the Hadoop framework contains the following modules:
 \begin{itemize}
@@ -8,18 +8,9 @@ Apache Hadoop is an open source distributed framework for managing, processing  
 	\item YARN - Yet Another Resource Negotiator: a resource management and job scheduling technology
 	\item Hadoop Common: contains libraries and utilities for other Hadoop modules
 \end{itemize}
-\iffalse\subsection{Hadoop \vs traditional databases}
-Traditional databases cannot be used when we want to process and store big data. Main differences between Hadoop and traditional RDBMS \cite{Hadoop-vs-RDBMS}:
-\begin{itemize}
-	\item \textbf{Data Volume}: RDBMS works better when data volume is low (Gigabytes). However, when data size is huge (Terabytes-Petabytes) traditional databases fail. Users have to pick another solution for the problem. Hadoop can easily handle this amount of data so it became the number one big data platform.
-	\item \textbf{Data Variety}: It means what type of data we want to process. Hadoop is able to store and process either structured, semi-structured or unstructured data. Even though  it is mostly used for huge amounts of unstructured data. 
-	In contrast, traditional RDBMS can only be used to manage structured or semi-structured data. 
-	\item \textbf{Scalability}: RDBMS provides vertical scalability. We can add more resources, memory or CPU to a machine in the cluster. Whereas Hadoop scales horizontally which means we can add more machines to an existing cluster. As a result of this, Hadoop becomes fault tolerant. We can easily recover data in case of a failure.
-	\item \textbf{Data Processing}: Apache Hadoop supports OLAP (Online Analytical Processing), which involves very complex queries and aggregations. The database design is de-normalized, having fewer tables. On the other hand, RDBMS supports OLTP (Online Transaction Processing), which involves fast query processing. The database design is normalized and contains large numbers of tables.
-\end{itemize}\fi
 
 \section{HDFS - Hadoop Distributed File System}
-HDFS is the file system of Hadoop. It stores file system metadata and application data separately. The dedicated server that stores metadata is the NameNode. Application data is stored on other servers (DataNodes). These servers are connected and they communicate using TCP-based protocols \cite{Shvachko:2010:HDF:1913798.1914427}. 
+HDFS is the file system of Hadoop. It stores file system metadata and application data separately. The dedicated server that stores metadata is the NameNode. Application data is stored on other servers called DataNodes. These servers are connected and they communicate using TCP-based protocols \cite{Shvachko:2010:HDF:1913798.1914427}. 
 
 \noindent The file system is based on the following goals and principles \cite{HDFS-docs}:
 \begin{itemize}
@@ -30,6 +21,7 @@ HDFS is the file system of Hadoop. It stores file system metadata and applicatio
 	\item \textbf{Moving computation}: A computation is much more efficient if it is executed near the data it operates on. It is especially true for big data. 
 	\item \textbf{Portability}: HDFS was designed to port from one platform to another with ease. 
 \end{itemize}
+
 \subsection{NameNode}
 NameNode keeps the directory tree of all files in the file system and tracks where data is kept across the cluster, it does not store the files. Clients talk to the NameNode whenever they want to locate a file. The NameNode's response is a list of relevant DataNode servers where the data is available. 
 
@@ -44,7 +36,7 @@ The image shows how NameNode stores information \cite{Secondary-NameNode}. There
 	\item edit logs: the changes made to the file system after the NameNode started
 	\item fsimage: a snapshot of the file system when the NameNode started
 \end{itemize}
-In production clusters, the NameNode restarts are very rare. That means edit logs can grow large therefore in case of a crash we will lose a huge amount of metadata since the fsimage is very old.
+In production clusters, the NameNode restarts are very rare. That means edit logs can grow large and in case of a crash we will lose a huge amount of metadata since the fsimage is very old.
 
 The Secondary NameNode helps to solve this issue. It is responsible for merging the edit logs with fsimage. It collects edit logs on a regular basis and applies them to the fsimage. NameNode will use this fsimage in case of a crash and it can also be used to reduce the startup time of the NameNode.
 It is important to remember that the Secondary NameNode is not a real backup NameNode it only merges the edits into the fsimage. 
@@ -58,7 +50,7 @@ It is important to remember that the Secondary NameNode is not a real backup Nam
 \subsection{DataNodes \cite{Shvachko:2010:HDF:1913798.1914427}}
 On a DataNode, a block is represented by two files in the native file system. The first contains the data itself, the second is the metadata.
 
-On startup, the DataNodes connect to the NameNode and perform a handshake. This will verify the namespace ID and software version of the DataNodes. If one of them does not match with the NameNode's value, the DataNode automatically shuts down. After a successful handshake, the DataNode registers with the NameNode. DataNode will store it's internal identifier. If restart occurs the DataNodes will be recognizable with the ID, even if they get a different IP address or port. After the ID is registered to the NameNode the it will never change. 
+On startup, the DataNodes connect to the NameNode and perform a handshake. This will verify the namespace ID and software version of the DataNodes. If one of them does not match with the NameNode's value, the DataNode automatically shuts down. After a successful handshake, the DataNode registers with the NameNode. DataNode will store it's internal identifier. If restart occurs the DataNodes will be recognizable with the ID, even if they get a different IP address or port. After the ID is registered to the NameNode the will never change. 
 
  When a DataNode is registered it sends a block report immediately. It contains block id, generation stamp and the length of each block the DataNode hosts. To provide up-to-date information to the NameNode reports are sent every hour. 
 
@@ -75,7 +67,7 @@ When someone reads a file, HDFS Client asks the NameNode for the list of DataNod
 	\caption{HDFS file writing}
 \end{figure}
 The client creates a new file by giving its path to the NameNode. For each block, the NameNode will return a list of DataNodes to place the replicas. The client pipelines data to the given DataNodes, and they will confirm the creation of the block to the NameNode.
-\clearpage
+
 \section{MapReduce}
 MapReduce is a programming model for processing data sets. Users specify two functions \cite{Dean:2004:MSD:1251254.1251264}:
 \begin{itemize}
@@ -85,7 +77,7 @@ MapReduce is a programming model for processing data sets. Users specify two fun
 
 Programs written in MapReduce are automatically executed parallelly on large clusters. Using this, programmers with no experience in parallel programming and distributed systems can utilize the available resources on the cluster.
 \paragraph{Example \cite{MapReduce-example}}
-This example shows how MapReduce handles the problem of counting words. We have the following list of words: 
+This example shows how MapReduce handles the problem of counting words. Let's say, we have the following list of words: 
 \begin{center}
 	\textbf{Dear, Bear, River, Car, Car, River, Deer, Car, Bear}
 \end{center}
@@ -103,15 +95,15 @@ This example shows how MapReduce handles the problem of counting words. We have 
 \end{itemize}
 
 \subsection{Advantages of MapReduce \cite{MapReduce-example}}
-\paragraph{Parallel processing}
+\subsubsection{Parallel processing}
 In MapReduce we divide the job among multiple nodes, so they can work on their part of the data parallelly. This way the data processing is done by multiple machines instead of one, so the time is significantly reduced.
-\paragraph{Data locality}
+\subsubsection{Data locality}
 In Hadoop MapReduce, instead of moving data into the processing unit, we move the processing unit to the data. The traditional approach has its limit when it comes to processing big data. Moving huge data is costly: network issues can occur and the master node (where data is stored) can get overloaded and may fail. 
 
 However, the MapReduce approach is very cost efficient, since all the nodes are working simultaneously on their part of the data and there is no chance of a node getting overloaded.
 
 Using Hadoop we just need to provide the map and reduce functions, the rest is done by the framework.  The word count example would look like the following in Java:
-\paragraph{Map}\mbox{}\\
+\subsubsection{Map}
 \begin{lstlisting}[language=Java]
 	public void map(LongWritable key, Text value, Context context) throws IOException,InterruptedException {
 		String line = value.toString();
@@ -136,7 +128,7 @@ The input and output of the Mapper is a key/value pair.
 	\item Value: the hardcoded value 1
 \end{itemize}
 
-\paragraph{Reduce}\mbox{}\\
+\subsubsection{Reduce}
 \begin{lstlisting}
 	public void reduce(Text key, Iterable<IntWritable> values,Context context) throws IOException,InterruptedException {
 		int sum=0;
@@ -171,7 +163,9 @@ The traditional way to execute MapReduce operations is that the users specify th
 
 Although, the Hadoop MapReduce framework is written in Java, with the help of Streaming API we can create Map and Reduce functions in any languages.
 
-MapReduce gives us a solution for many big data problems. However, for some scenarios, MapReduce is not the ideal choice: \eg real-time analysis. In Hadoop 1.0 we could not use components other than MapReduce (for example Apache Storm which is ideal for real-time computation). The desire for utilizing the potential provided by the distributed file system (HDFS) in other solutions has grown. YARN provides a solution to fulfill this claim. \section{Yarn \cite{YARN}}
+MapReduce gives us a solution for many big data problems. However, for some scenarios, MapReduce is not the ideal choice: \eg real-time analysis. In Hadoop 1.0 we could not use components other than MapReduce (for example Apache Storm which is ideal for real-time computation). The desire for utilizing the potential provided by the distributed file system (HDFS) in other solutions has grown. YARN provides a solution to fulfill this claim.
+
+\section{Yarn \cite{YARN}}
 \subsection{Hadoop 1.0 resource management}
 Previous to Hadoop 2.0, a single JobTracker had the responsibility to monitor the resources and distribute the MapReduce jobs for the DataNodes and monitor these jobs. 
 

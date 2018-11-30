@@ -8,7 +8,11 @@
 %----------------------------------------------------------------------------
 \chapter*{Kivonat}\addcontentsline{toc}{chapter}{Kivonat}
 
-Jelen dokumentum egy diplomaterv sablon, amely formai keretet ad a BME Villamosmérnöki és Informatikai Karán végző hallgatók által elkészítendő szakdolgozatnak és diplomatervnek. A sablon használata opcionális. Ez a sablon \LaTeX~alapú, a \emph{TeXLive} \TeX-implementációval és a PDF-\LaTeX~fordítóval működőképes.
+Apache Hive eredetileg a Facebook által készített nyílt forráskódú, adattárház platform. Célja, hogy megkönnyítse az adatelemzők munkáját azzal, hogy bevezetett egy, az SQL-hez hasonló nyelvet, a HiveQL-t. Hive bemenete egy HiveQL lekérdezés, amit feldolgoz, szemantikailag elemzi, majd amennyiben lehetséges optimalizálja különböző optimalizációs stratégiákat felhasználva. Végezetül generál egy Hadoop feladatot, amit az végre tud hajtani. Hive nem csak Hadoopot tud használni végrehajtó motortként, támogatja az Apache Spark és Apache Tez használatát is. 
+
+Bizonyos körülmények között Hive memória problémákkal küzd. HiveServer2 az egyik fő komponense, gyakran összeomlik Out Of Memory (OOM) hibaüzenettel. Jelen dolgozattal a célom, hogy felépítsek egy alapvető modellt, melnyek segítségével megtudjuk miért és a lekérdezés életciklusában mikor növekszik jelentősen a memóriahasználat, valamint memória problémákat találjak és amennyiben lehetséges ezekre megoldási javaslatot adjak.
+
+A model építéshez segítségül létrehoztam egy eszközt, melynek használatával információkat tudok kinyerni a memóriahasználattal kapcsolatban és heap mintákat (heap dump) tudok generálni automatikusan a lekérdezés élete során, későbbi elemzés céljából. Az említett és más memória elemző eszközök segítségével azonosítottam két problémát, amik a heap memóriát jelentősen tudják növelni. Az egyik probléma HDFS-ből származik (Hadoop elosztott fájlrendszere), ezért Hadoop kód megértése és módosítása is szükségessé vált. Mindkét memória problémára, létrehoztam egy megoldási javaslatot, és csináltam egy lehetséges implementációt ami segíthet megszabadulni a memória problémától. Mindkét javítás alapos tesztelést igényelt: lokális, egyszerű teljesítmény tesztekre és skálázható adatközpont klaszteren végrehajtott benchmark tesztekre is szükség volt. Az azonosított problémák vizsgálata jelenleg is folyamatban van. A HDFS javításom előidézhet nehezen detektálható, váratlan CPU problémákat, ezért annak eldöntésére hogy a kompromisszum előnyös lesz, nagyon alapos tesztelés szükséges.
 
 
 \vfill
@@ -19,9 +23,11 @@ Jelen dokumentum egy diplomaterv sablon, amely formai keretet ad a BME Villamosm
 % Abstract in English
 %----------------------------------------------------------------------------
 \chapter*{Abstract}\addcontentsline{toc}{chapter}{Abstract}
+Apache Hive is an open source data warehouse platform originally built on top of Hadoop by Facebook. Hive makes the work of data scientists easier by introducing a language similar to SQL, called HiveQL. Hive takes query written in HiveQL, does parsing and analyzing and if possible, optimizes the query using several optimization strategies. Finally, it creates a Hadoop job and executes it on the platform. Currently, not only Hadoop can be used as an execution engine, Hive can even work on Apache Spark or Apache Tez. 
 
-This document is a \LaTeX-based skeleton for BSc/MSc~theses of students at the Electrical Engineering and Informatics Faculty, Budapest University of Technology and Economics. The usage of this skeleton is optional. It has been tested with the \emph{TeXLive} \TeX~implementation, and it requires the PDF-\LaTeX~compiler.
+Hive faces memory problems under certain circumstances. HiveServer2 is one of the main components of Hive and often crashes due to Out Of Memory (OOM) error. In my thesis, I aim to build a basic model, to understand why and when the memory usage of HiveServer2 rises and find memory-related problems or wastes.
 
+To be able to build a model, I created a basic tool for getting memory information and generating heap dumps automatically during the life of a query. With the help of my tool and other memory analysis tools, I generated and analyzed many heap dumps. I was able to identify two issues that can cause big pressure on heap memory. One of the issues is introduced by HDFS (distributed file system of Hadoop), therefore touching Hadoop was also necessary. For both memory issues, I suggested a possible solution and created an implementation, that can help get rid of the memory overheads. These patches required multiple tests: local, simple performance testing and scalable benchmarking on a data center cluster. The issues identified are still ongoing and currently under investigation since the HDFS patch might introduce unexpected CPU overhead which are hard to detect so deciding whether this tradeoff is negligible requires a thorough testing. 
 
 \vfill
 \selectthesislanguage
