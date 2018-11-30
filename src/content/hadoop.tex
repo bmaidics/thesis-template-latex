@@ -12,7 +12,7 @@ Apache Hadoop is an open source distributed framework for managing, processing a
 \section{HDFS - Hadoop Distributed File System}
 HDFS is the file system of Hadoop. It stores file system metadata and application data separately. The dedicated server that stores metadata is the NameNode. Application data is stored on other servers called DataNodes. These servers are connected and they communicate using TCP-based protocols \cite{Shvachko:2010:HDF:1913798.1914427}. 
 
-\noindent The file system is based on the following goals and principles \cite{HDFS-docs}:
+\noindent The file system is based on the following goals and principles \cite{Hadoop-current}:
 \begin{itemize}
 	\item \textbf{Hardware failure}: Hardware failures should be considered as normal, rather than an exception. An HDFS instance consists of hundreds or thousands of components so this means that some of them will always be non-functional. Therefore, fault detection and automatic recovery is a must.
 	\item \textbf{Streaming Data Access}: HDFS was designed for batch processing rather than interactive use. Therefore, HDFS users need streaming access to their data. This means that high throughput is more important than low latency.
@@ -165,7 +165,7 @@ Although, the Hadoop MapReduce framework is written in Java, with the help of St
 
 MapReduce gives us a solution for many big data problems. However, for some scenarios, MapReduce is not the ideal choice: \eg real-time analysis. In Hadoop 1.0 we could not use components other than MapReduce (for example Apache Storm which is ideal for real-time computation). The desire for utilizing the potential provided by the distributed file system (HDFS) in other solutions has grown. YARN provides a solution to fulfill this claim.
 
-\section{Yarn \cite{YARN}}
+\section{Yarn \cite{Hadoop-current}}
 \subsection{Hadoop 1.0 resource management}
 Previous to Hadoop 2.0, a single JobTracker had the responsibility to monitor the resources and distribute the MapReduce jobs for the DataNodes and monitor these jobs. 
 

@@ -6,7 +6,7 @@ This section shows the main differences between Hive and traditional databases (
 
 Hive supports SQL interface but it is not a full database. It follows WORM (Write Once Read Many) model while RDBMS is designed for Write and Read many times. Hive uses schema on read and traditional databases offer schema on write. Looking into Hive's approach, data is not validated until it is read. We can define multiple schemas to the same data and it provides a fast initial loading since the operation is just a copy and write. However, the schema on read approach has some drawbacks. Schema check on write ensures that the data is not corrupt and it provides a better query performance: when we read data, schema checking is not needed. Hive is a better choice when the schema is not available at loading time since it can be added later dynamically. 
 
-From Hive 0.13, Hive supports transactions \cite{Hive-transactions} and full ACID semantics at row level, but with many limitations. Previous to this, atomicity, consistency and durability were available and only at partition level. With introducing transactions Insert, Update and Delete keywords were added to HiveQL. 
+From Hive 0.13, Hive supports transactions \cite{Hive-apache} and full ACID semantics at row level, but with many limitations. Previous to this, atomicity, consistency and durability were available and only at partition level. With introducing transactions Insert, Update and Delete keywords were added to HiveQL. 
 
 The maximum data size allowed in a traditional RDBMS is 10's of Terabytes. However, Hive can easily handle Petabytes.
 
@@ -14,7 +14,7 @@ The maximum data size allowed in a traditional RDBMS is 10's of Terabytes. Howev
 Hive is a great choice if we want to analyze large, relatively static data sets, fast querying is not necessary and easy, low-cost scalability is required. RDBMS provides fast responses for analyzing data dynamically, but scalability and maximum data size are limited.
 
 \section{Data storage}
-Hive structure data in the following units  \cite{Hive-paper, Hive-data-units}:
+Hive structure data in the following units  \cite{Hive-paper, Hive-apache}:
 \begin{itemize}
 \item \textbf{Databases}: namespaces to avoid conflicts of table, partition or bucket names.
 \item \textbf{Tables}: storage unit for data with the same schema. Tables maps to directories in HDFS.

@@ -4,14 +4,14 @@ To get a better insight on how Hive uses memory, I needed to build a basic model
 \section{Finding the measuring points}
 Hive has around 2 million lines of code so locating the main steps of the query processing was challenging. 
 
-As a starting point, the user enters a query in the client. At this point, I run Hive locally, so the simplest way for submitting queries against Hive was using Beeline command line client. HS2 gets the query through its Thrift interface. After this, the query goes to the \textit{Driver} class, which is the main class for executing queries.
+As a starting, the user enters a query in the client. At this point, I run Hive locally, so the simplest way for submitting queries against Hive was using Beeline command line client. HS2 gets the query through its Thrift interface. After this, the query goes to the \textit{Driver} class, which is the main class for compiling and executing queries.
 
-The Driver has two methods that are important for me: run and runInternal. The run method gets called first, which basically just delegates to the runInternal method. These two functions return with a CommandProcessorResponse, once the compilation and execution are done. 
+The Driver has two methods that are important for me: \textit{run} and \textit{runInternal}. The \textit{run} method gets called first, which basically just delegates to the \textit{runInternal} method. These two functions return with a \textit{CommandProcessorResponse}, once the compilation and execution are done. 
 
 \noindent The runInternal does the two main steps:
 \begin{itemize}
-	\item Driver.compile: gets the command string and parses, analyses the query and generates the execution plan.
-	\item Driver.execute: gets the execution plan and executes it on a specific engine (MapReduce, Spark or TEZ).
+	\item \textit{Driver.compile}: gets the command string and parses, analyses the query and generates the execution plan.
+	\item \textit{Driver.execute}: gets the execution plan and executes it on a specific engine (MapReduce, Spark or TEZ).
 \end{itemize}
 
 \subsection{Compile}
@@ -28,7 +28,7 @@ public int compile(String command, ...) {
 }
 \end{lstlisting}
 \subsubsection{Semantic Analyzis}
-After the AST is generated, the compile process will continue with the semantic analyzer. The type of the analyzer will depend on the query type we are running. For SELECT and INSERT the SemanticAnalyzer class is used. 
+After the AST is generated, the compile process will continue with the semantic analyzer. The type of the analyzer will depend on the query type we are running. For SELECT and INSERT the \textit{SemanticAnalyzer} class is used. 
 
 \begin{lstlisting}
 public int compile(String command, ...) {
@@ -40,7 +40,7 @@ public int compile(String command, ...) {
 }
 \end{lstlisting}
 
-The SemanticAnalyzer class is the main phase during compilation. It checks for semantic errors, fetches metadata from Metastore, generates and optimizes the query plan. The analyze method of the BaseSemanticAnalyzer is called from the Driver's compile method, and it delegates the call to the corresponding Analyzer. From now on, I will write about the SemanticAnalyzer class and its phases (which is executed for SELECTS and INSERTS.
+The SemanticAnalyzer class is the main phase during compilation. It checks for semantic errors, fetches metadata from Metastore, generates and optimizes the query plan. The \textit{analyze} method of the \textit{BaseSemanticAnalyzer} is called from the Driver's \textit{compile} method, and it delegates the call to the corresponding analyzer. From now on, I will write about the \textit{SemanticAnalyzer} class and its phases (which is executed for SELECTS and INSERTS).
 
 \begin{lstlisting}
 void analyzeInternal(ASTNode ast, PlannerContext plannerCtx) {
@@ -67,7 +67,7 @@ void analyzeInternal(ASTNode ast, PlannerContext plannerCtx) {
 \end{lstlisting}
 
 \begin{enumerate}
-	\item Fetches metadata and fill the Parse Tree with it so it becomes a Resolved Parse Tree.
+	\item Fetches metadata and fills the Parse Tree with it so it becomes a Resolved Parse Tree.
 	\item The Operation Tree gets created which will contain operators that process data read from the table. This tree is called by the Map and Reduce methods.
 	\item The semantic analyzer will deduce the schema of the result set from the row schema
 	\item A logical optimization is done on the Operator Tree. There are two types of optimization: one that transforms the Operator Tree (like removing unnecessary operations) and one that does not (predicate pushdown, vectorization \etc).
@@ -92,12 +92,12 @@ If I want to measure the memory usage of Hive, I need a something to create and 
 For creating heap dumps and statistics of the memory, I decided to use a command line tool. In contrast of a UI tool, it has the benefits to generate heap dumps and statistics automatically. 
 
 \subsubsection{jmap}
-\textit{jmap} \cite{jmap} can be used to obtain heap dumps and histograms from a running java process.
+\textit{jmap} \cite{jmap-jcmd} can be used to obtain heap dumps and histograms from a running java process.
 
 To gather information about a running Java program we need its process ID (PID). Using this we can easily create the heap dump with the \textit{-dump} option. If we do not want to analyze large heap dumps, just to get the objects that reserve the most memory, we can use the \textit{-histo} option. It will print a histogram of the heap, containing each Java class, the number of objects and memory sizes per class.
 
 \subsubsection{jcmd}
-\textit{jmap} would have been a perfect choice for measuring memory. However, it is recommended to use the latest utility, which is called \textit{jcmd} \cite{jcmd}. It has enhanced diagnostics capability and its perfomance overhead is reduced. 
+\textit{jmap} would have been a perfect choice for measuring memory. However, it is recommended to use the latest utility, which is called \textit{jcmd} \cite{jmap-jcmd}. It has enhanced diagnostics capability and its perfomance overhead is reduced. 
 
 The usage of jcmd is similar to jmap. For creating heap dumps we can use \textit{jcmd <PID> GC.heap\_dump}. If we want to obtain class histogram we can do that with the \textit{jcmd <PID> GC.class\_histogram} command. With the \textit{jcmd <PID> GC.heap\_info} command we can gather basic information of the heap: \eg young and old memory of the process.
 
@@ -115,9 +115,9 @@ Creating heap dumps with a CLI tool is easier, however analysing those requires 
 With the "classes view" we can get information about the reserved memory and number of instances for each class. We can calculate the retained memory, which is the memory that would be freed if the objects would be garbage collected.
 
 \subsubsection{JXRay}
-JXRay \cite{jxray} is a memory analysis tool for Java applications. It creates a HTML report of a given heap dump. It can automatically detect common problems, like data duplication or non-optimal usse of data stuctures. 
+JXRay \cite{jxray} is a memory analysis tool for Java applications. It creates an HTML report of a given heap dump. It can automatically detect common problems, like data duplication or non-optimal use of data structures. 
 
-JXRay can give us a compact report, even if the heap dump analyzed is 10's of GB. It can calculate how much memory taken by a collection internal representation and their workload, since JXRay knows about the internal representation of common java collections (HashMap, ArrayList \etc).
+JXRay can give us a compact report, even if the heap dump analyzed is 10's of GB. It can calculate how much memory taken by a collection's internal representation and their workload since JXRay knows about the internal representation of common java collections (HashMap, ArrayList \etc).
 
 \begin{figure}[H]
 	\includegraphics[width=150mm, keepaspectratio]{figures/jxray_sample.png}
@@ -132,11 +132,11 @@ During my work, I also used JXRay, since it can automatically detect the most co
 
 \clearpage
 \subsection{Creating the code to measure memory}
-With the available tools I am able to generate heap dumps really easily. However, to get a model how Hive uses the memory, I should gather statistics and heap dumps at certain points of the query execution. Clearly, it is not possible by hand. Thus, I needed to create a class in Hive's codebase and integrate the sampling in the identified points found in the previous section.
+With the available tools, I am able to generate heap dumps really easily. However, to get a model how Hive uses the memory, I should gather statistics and heap dumps at certain points of the query execution. Clearly, it is not possible by hand. Thus, I needed to create a class in Hive's codebase and integrate the sampling in the identified points found in the previous section.
 
-In order to use jcmd from Java, I needed a way to execute a terminal command from code. With the \textit{ProcessBuilder} java class I'm able to create operating system processes with the given attributes. The \textit{Runtime.exec()} method would do the same, but using this command is discouraged. 
+In order to use jcmd from Java, I needed a way to execute a terminal command from code. With the \textit{ProcessBuilder} java class I am able to create operating system processes with the given attributes. The \textit{Runtime.exec()} method would do the same, but using this command is discouraged. 
 
-Now that I can run a command line tool from Java, I will need the process ID of HiveServer2. Since Hive uses Java 8, I cannot use the new Process API that Java 9 provides. With the help of the \textit{ManagementFactory} class, we can get the managed bean of the runtime system of the JVM. It will return a class implementing the \textit{RuntimeMXBean} interface. The name of the running JVM contains the ID of the process. With the \textit{RuntimeMXBean.getName()} method, I was able to get the PID of HiveServer2. The method will return a string in a format of: \textit{pid@hostname}. Using the split method we can get our application's process ID.
+Now that I can run a command line tool from Java, I will need the process ID of HiveServer2. Since Hive uses Java 8, I cannot use the new Process API that Java 9 provides. With the help of the \textit{ManagementFactory} class, we can get the managed bean of the runtime system of the JVM. It will return a class implementing the \textit{RuntimeMXBean} interface. The name of the running JVM contains the ID of the process. With the \textit{RuntimeMXBean.getName()} method, I was able to get the PID of HiveServer2. The method will return a string in a format of \textit{pid@hostname}. Using the split method we can get our application's process ID.
 
 To avoid code duplication I created a method for getting the ProcessBuilder which contains the given command and the PID for HiveServer2 is already set.
 
@@ -160,7 +160,7 @@ Using the \textit{getProcessBuilder} function, it is really simple to run a term
 \end{lstlisting}
 
 \subsubsection{Parsing result}
-I am able to create detailed statistics about the current memory state at certain phases of the query. As a first approach, I decided to just use \textit{GC.heap\_info} to see how memory usage looks like at different stages, not caring how much memory is reserved by each class. However, if we look at the result of the \textit{jcmd <PID> GC.heap\_info}, it will look quite messy, and hides the most important details, especially if we have 15 result for each query. An example how it looks:
+I am able to create detailed statistics about the current memory state at certain phases of the query. As a first approach, I decided to just use \textit{GC.heap\_info} to see how memory usage looks like at different stages, not caring how much memory is reserved by each class. However, if we look at the result of the \textit{jcmd <PID> GC.heap\_info}, it will look quite messy, and hides the most important details, especially if we have 15 results for each query. An example of how it looks:
 
 \begin{lstlisting}
 21566:
@@ -182,19 +182,23 @@ I only need certain values: allocated young and old memory, and a total memory w
 
 To do this, I made a function (printResultToCSV) which will parse the given string, and print the results to a csv file in a table like format, where the first line is the query, and the columns are the different stages.
 
-\begin{figure}[H]
-	\includegraphics[width=150mm, keepaspectratio]{figures/parse_output.png}
-	\centering
-	\caption{Sample output of the parsing}
-\end{figure}
-
-
+\begin{table}[H]
+	\begin{tabular}{|l|l|l|l|l|l|l|l|}
+		\hline
+		\begin{tabular}[c]{@{}l@{}}select * \\ from \\ people2 \\ limit \\ 10000\end{tabular} & \begin{tabular}[c]{@{}l@{}}Before\\ compile\end{tabular} & \begin{tabular}[c]{@{}l@{}}After \\ parse\end{tabular} & \begin{tabular}[c]{@{}l@{}}Resolve \\ Parse \\ tree\end{tabular} & \begin{tabular}[c]{@{}l@{}}Generate\\ OP tree\end{tabular} & \begin{tabular}[c]{@{}l@{}}Logical \\ opt.\end{tabular} & \begin{tabular}[c]{@{}l@{}}Physical\\ opt.\end{tabular} & Validate \\ \hline
+		Young                                                                                 & 10552                                                    & 8679                                                   & 13568                                                            & 13154                                                      & 25681                                                   & 23503                                                   & 27467    \\ \hline
+		Old                                                                                   & 12296                                                    & 14499                                                  & 14342                                                            & 51493                                                      & 85316                                                   & 85151                                                   & 85926    \\ \hline
+		Sum                                                                                   & 22848                                                    & 23178                                                  & 27910                                                            & 64647                                                      & 110997                                                  & 108654                                                  & 113393   \\ \hline
+	\end{tabular}
+\centering
+\caption{Sample output of the parsing}
+\end{table}
 \subsection{How HiveServer2 uses memory}
 I have the code to measure the memory of Hive and get a general picture of the usage at certain phases. With this, I am able to get a better understanding when and why memory goes high. I would like to get an answer to these questions: How does the number of joins increase the memory? Which type of query generates a lot of memory usage: union, group by? If we increase the number of partitions, how it affects the heap size? In this section, these questions will be answered.
 
 The first step is to create a managed table where I will run my queries in the future. Hive faces memory problems when we have a highly partitioned table. I decided that for the first run, 20 000 partitions will be enough. 
 
-The second step was to create queries which will be submitted to Hive. The first question was how the number of joins affects memory? To answer it, I have created queries with an increasing number of joins included. I used self-joins and only increased the number to three. The pattern was clear for only four measures: a simple select query without join operator, and queries with one, two and three. From the output of my parsed CSV file, I generated the following chart that shows the memory increase.
+The second step was to create queries which will be submitted to Hive. The first question was how the number of joins affects memory? To answer it, I have created queries with an increasing number of joins included. I used self-joins and only increased the number to three. The pattern was clear for only four measures: a simple select query without join operators, and queries with one, two and three. From the output of my parsed CSV file, I generated the following chart that shows the memory increase.
 
 \begin{figure}[H]
 	\includegraphics[width=150mm, keepaspectratio]{figures/hs2_joins_memory.png}
@@ -210,7 +214,7 @@ The second step was to create queries which will be submitted to Hive. The first
 	\item select * from tablename t1 join tablename t2 on t1.id=t2.id join tablename t3 on t2.id=t3.id join tablename t4 on t3.id=t4.id (\textcolor{green}{\rule{2 cm}{2pt} })
 \end{itemize}
 
-We can see that the memory change caused by the number of join operators is negligible, only around 20 Megabytes per join. The results were as expected: the memory increased significantly when HiveServer2 connected to the MetaStore and asked for metadata. During physical optimization, Hive loaded metadata to memory including partition metadata. In a highly partitioned table, this size is notable. Although real queries submitted to Hive by users are much more complicated and contains multiple tables, the model will be quite similar: heap memory will rise when metadata is loaded.
+We can see that the memory change caused by the number of join operators is negligible, only around 20 Megabytes per join. The results were as expected: the memory increased significantly when HiveServer2 connected to the MetaStore and asked for metadata. During physical optimization, Hive loaded metadata to the memory including partition metadata. In a highly partitioned table, this size is notable. Although real queries submitted to Hive by users are much more complicated and contains multiple tables, the model will be quite similar: heap memory will rise when metadata is loaded.
 
 I also wanted to see the memory effects of \textit{group by} and  \textit{union all} operations. I ran 5 more queries including these but did not find anything notable. The pattern remained the same: see the chart below. 
 
@@ -236,12 +240,13 @@ A well-known issue in Hive is, if we have a highly partitioned table, the memory
 	\begin{tabular}{|l|l|l|l|l|}
 		\hline
 		& \textbf{\begin{tabular}[c]{@{}l@{}}ql.metadata.\\ Partitions\end{tabular}} & \textbf{\begin{tabular}[c]{@{}l@{}}metastore.api.\\ Partition\end{tabular}} & \textbf{\begin{tabular}[c]{@{}l@{}}ql.plan.\\ PartitionDesc\end{tabular}} & \textbf{Sum} \\ \hline
-		\textbf{200 partitions}    & 300 Kb                                                                     & 288 Kb                                                                      & 108 Kb                                                                    & 696 Kb       \\ \hline
-		\textbf{2000 partitions}   & 3057 Kb                                                                    & 2946 Kb                                                                     & 1110 Kb                                                                   & 7113 Kb      \\ \hline
-		\textbf{5000 partitions}   & 7988 Kb                                                                    & 7709 Kb                                                                     & 2793 Kb                                                                   & 18490 Kb     \\ \hline
-		\textbf{20000 partitions}  & 29999 Kb                                                                   & 28879 Kb                                                                    & 3173 Kb                                                                   & 62051 Kb     \\ \hline
-		\textbf{100000 partitions} & 165002 Kb                                                                  & 158841 Kb                                                                   & 60531 Kb                                                                  & 384374 Kb    \\ \hline
+		\textbf{\begin{tabular}[c]{@{}l@{}}200\\ partitions\end{tabular}}     & 300 Kb                                                                     & 288 Kb                                                                      & 108 Kb                                                                    & 696 Kb       \\ \hline
+		\textbf{\begin{tabular}[c]{@{}l@{}}2000\\ partitions\end{tabular}}   & 3057 Kb                                                                    & 2946 Kb                                                                     & 1110 Kb                                                                   & 7113 Kb      \\ \hline
+		\textbf{\begin{tabular}[c]{@{}l@{}}5000\\ partitions\end{tabular}}    & 7988 Kb                                                                    & 7709 Kb                                                                     & 2793 Kb                                                                   & 18490 Kb     \\ \hline
+	\textbf{\begin{tabular}[c]{@{}l@{}}20000\\ partitions\end{tabular}}   & 29999 Kb                                                                   & 28879 Kb                                                                    & 3173 Kb                                                                   & 62051 Kb     \\ \hline
+	\textbf{\begin{tabular}[c]{@{}l@{}}100000\\ partitions\end{tabular}} & 165002 Kb                                                                  & 158841 Kb                                                                   & 60531 Kb                                                                  & 384374 Kb    \\ \hline
 	\end{tabular}
+\centering
 \caption{Memory of partitions}
 \end{table}
 
@@ -251,9 +256,9 @@ A well-known issue in Hive is, if we have a highly partitioned table, the memory
 	\caption{Reserved memory by partitions}
 \end{figure}
 
-As we see, for 100.000 partitions the reserved memory is aroung 385 Megabytes. Before taking the samples, I expected higher memory consumption. However, with a little investigation I found that the memory waste around partitions was already somewhat decreased \cite{hive-partitions}. PartitionDesc objects has a java.util.Properties field. These Properties fields in the PartitionDesc most often are the same. Interning these saves a big amount of memory. In a later section, I will write more about the interning solution because it gave me an idea to fix another memory related issue.
+As we see, for 100.000 partitions the reserved memory is aroung 385 Megabytes. Before taking the samples, I expected higher memory consumption. However, with a little investigation I found that the memory waste around partitions was already somewhat decreased \cite{hive-partitions}. \textit{PartitionDesc} objects has a \textit{java.util.Properties} field. These \textit{Properties} fields in the \textit{PartitionDesc} most often are the same. Interning these saves a big amount of memory. In a later section, I will write more about the interning solution because it gave me an idea to fix another memory related issue.
 
-However the memory reserved by partitions is still high enough, so I decided to take a look at the heap dumps and try to find wastes or problems that affects memory.
+However the memory reserved by partitions is still high enough, so I decided to take a look at the generated heap dumps and try to find wastes or problems that affects memory.
 
 \subsection{Where does the memory go?}
 I analyzed the heap dump generated after the semantic analyzer phase when self-joining a table with 100000 partitions. It showed an interesting fact: 47.1\% (~853 Megabytes) of retained memory is reserved by Strings. Retained means, that if the Garbage Collector frees them, we win that amount of memory. 
@@ -295,7 +300,7 @@ The community agreed that the way URIs store these paths is a waste, and could b
 \end{itemize}
 \section{Solution ideas}
 \subsection{Solution 1: WeakReference}
-A WeakReferenced object works in a way, that if the object is only weakly reachable (its only reference is a WeakReference), it will not prevent the object to be garbage collected. We would have a WeakReference to the URI and when the GC runs it can collect the URIs if iwe do not have a strong reference to it. 
+A WeakReferenced object works in a way, that if the object is only weakly reachable (its only reference is a WeakReference), it will not prevent the object to be garbage collected. We would have a WeakReference to the URI and when the GC runs it can collect the URIs if we do not have a strong reference to it. 
 
 When someone wants to get the URI representation of the path and calls the \textit{toURI} function, we need to check if the URI exists through the WeakReference or not. If it exists we can just get it because we have a WeakReference to it. If it does not, we need to recreate the URI from its parts. 
 
