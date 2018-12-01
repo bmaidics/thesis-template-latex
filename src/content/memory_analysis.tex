@@ -194,7 +194,7 @@ To do this, I made a function (printResultToCSV) which will parse the given stri
 \caption{Sample output of the parsing}
 \end{table}
 \subsection{How HiveServer2 uses memory}
-I have the code to measure the memory of Hive and get a general picture of the usage at certain phases. With this, I am able to get a better understanding when and why memory goes high. I would like to get an answer to these questions: How does the number of joins increase the memory? Which type of query generates a lot of memory usage: union, group by? If we increase the number of partitions, how it affects the heap size? In this section, these questions will be answered.
+I have the code to measure the memory of Hive and get a general  of the usage at certain phases. With this, I am able to get a better understanding when and why memory goes high. I would like to get an answer to these questions: How does the number of joins increase the memory? Which type of query generates a lot of memory usage: union, group by? If we increase the number of partitions, how it affects the heap size? In this section, these questions will be answered.
 
 The first step is to create a managed table where I will run my queries in the future. Hive faces memory problems when we have a highly partitioned table. I decided that for the first run, 20 000 partitions will be enough. 
 
@@ -497,11 +497,11 @@ Since the fix would affect many other components, more benchmarks are still need
 It is known, that Hive memory depends on mainly two factors: one is the number of partitions in tables and the other one is the number of connections made to HiveServer2. In the first part of my work I focused on the number of partitions and found a way that would decrease the memory of HiveServer2 when our tables are highly partitioned. In this section I will try to get a better understanding what uses so much memory when multiple connections are made and see if the issue can be fixed or not. 
 
 \section{Memory of HS2 with multiple connections}
-HiveServer2 can serve multiple clients at the same time. Obviously, the resources needed for handling multiple connections is proportional with the number of client connected to the server. Let's see what uses memory in this scenario.
+HiveServer2 can serve multiple clients at the same time. Obviously, the resources needed for handling multiple connections is proportional to the number of clients connected to the server. Let's see what uses memory in this scenario.
 
-I wanted to see the memory effect of the number of connections only, so I decided to analyze the memory before compilation and execution happens. This way I can get a clearer picture, since memory used by compilation or execution will not be presented, only the overhead of each connection. 
+I wanted to see the memory effect of the number of connections only, so I decided to analyze the memory before compilation and execution happen. This way I can get a clearer picture since memory used by compilation or execution will not be presented, only the overhead of each connection. 
 
-For each connection made to Hive, a session is created. I use a bash script for simulating multiple clients connection to Hive locally. 
+For each connection made to Hive, a session is created. I used a bash script for simulating multiple client connections to Hive locally. 
 
 \begin{lstlisting}
 #!/bin/sh
@@ -510,9 +510,9 @@ for i in `seq 1 50`;
 &done;	
 \end{lstlisting}
 
-In the body of the for loop, for each iteration I made a connection to HiveServer2 using Beeline command line client. As arguments, I provided the jdbc connection URL of HS2 (the default port HS2 is listening is 10000) and the username/password, which is admin/admin as a default value.
+In the body of the for loop, for each iteration, I made a connection to HiveServer2 using Beeline command line client. As arguments, I provided the JDBC connection URL of HS2 (the default port that HS2 is listening is 10000) and the username/password, which is admin/admin as a default value.
 
-With the previously mentioned measuring code, I created a heap dump after 50 connections were made to HS2 and sesssion were already created. The following figure shows the objects that use the most heap memory.
+With the previously mentioned measuring code, I created a heap dump after 50 connections were made to HS2 and session were already created. The following figure shows the objects that use the most heap memory.
 
 \begin{figure}[H]
 	\includegraphics[width=150mm, keepaspectratio]{figures/hiveconf_memory.png}
@@ -520,23 +520,23 @@ With the previously mentioned measuring code, I created a heap dump after 50 con
 	\caption{Object with the most retained memory}
 \end{figure}
 
-For each session, an individual HiveConf object is created, which contains all the configuration properties of Hive. These configurations can easily contain thousands of values so the big heap memory is not that surprising. The first thing I recognized during the analyzis of the heap dump, is that each HiveConf object of a session use the same amount of memory. Thus, these objects cannot be that different from each other. If that is the case, why do we have a different one for every session?
+For each session, an individual HiveConf object is created, which contains all the configuration properties of Hive. These configurations can easily contain thousands of values so the big heap memory is not that surprising. The first thing I recognized during the analysis of the heap dump, is that each HiveConf object of a session uses the same amount of memory. Thus, these objects cannot be that different from each other. If that is the case, why do we have a different one for every session?
 
 The HiveConf class is a descendant of the \textit{Configuration.java} class, that is inherited from Hadoop. The biggest memory of each HiveConf a private Properties field. The Properties class is a type of HashMap that only contains String keys and values. Looking into the Properties fields of each HiveConf confirmed my assumption: they have exactly the same values apart from a few properties.
 
-This inspired me to look more into the details. How these configuration objects are used? When we start Hive, Hadoop configuration properties are applied, and we read Hive's configuration file (hive-site.xml) and overlay those properties. After this, for each session we create a new HiveConf instance with copying the existing "base". This way sessions can add their own unique Properties to their configuration object. 
+This inspired me to look more into the details. How these configuration objects are used? When we start Hive, Hadoop configuration properties are applied, and we read Hive's configuration file (hive-site.xml) and overlay those properties. After this, for each session, we create a new HiveConf instance with copying the existing "base". This way sessions can add their own unique Properties to their configuration object. 
 
-It is important to notice that we rarely touch the "base" configurations. Usually the sessions add some Properties to it and the base configuration remains untouched. To get rid of the memory overhead, a possible solution would be to use the same Properties object for each HiveConf if the values in them are the same.
+It is important to notice that we rarely touch the "base" configurations. Usually, the sessions add some Properties to it and the base configuration remains untouched. To get rid of the memory overhead, a possible solution would be to use the same Properties object for each HiveConf if the values in them are the same.
 
 \section{HIVE-20760: Reducing memory overhead due to multiple HiveConfs}
 I already saw a somewhat similar problem, when looking into the partition memory issues. PartitionDesc used exactly the same Properties object, and the solution for that was introducing CopyOnFirstWriteProperties class \cite{hive-partitions}. 
 
 It is a special subclass of Properties, designed to save memory when lots of identical Properties are created. The class uses interning to solve the problem: it has an interned Properties field which points to the same object for all instances that has identical contents. If any mutating method (\eg setProperties, put, clear) is called on the object, the content is copied to "this" instance, and we no longer use the interned object. 
 
-As a first idea, I thought that using this class would help. However, HiveConfs are used differently from PartitionDesc, and this solution was desinged for that. We often call mutating methods on the Properties field of HiveConf. Each session is able to add additional values to its configuration. Thus, other solution is needed to save memory in this scenario, since using CopyOnFirstWriteProperties immediately throws away the interned Properties if we add a new property to it.
+As a first idea, I thought that using this class would help. However, HiveConfs are used differently from PartitionDesc, and this solution was designed for that. We often call mutating methods on the Properties field of HiveConf. Each session is able to add additional values to its configuration. Thus, another solution is needed to save memory in this scenario, since using CopyOnFirstWriteProperties immediately throws away the interned Properties if we add a new property to it.
 
 \subsection{Introducing HiveConfProperties class}
-My idea was to intern only the "base" Properties. When we create a HiveConf from an already existing one using its "copy constuctor", instead of creating a built in \textit{java.util.Properties} we will use a subclass of Properties. I named this class HiveConfProperties. 
+My idea was to intern only the "base" Properties. When we create a HiveConf from an already existing one using its "copy constructor", instead of creating a built-in \textit{java.util.Properties} we will use a subclass of Properties. I named this class HiveConfProperties. 
 
 I designed HiveConfProperties to save memory caused by the many nearly individual HiveConfs. Right after we create a HiveConfProperties instance, from an already existing Properties, we can intern that. For interning, I used \textit{com.google.common.collect.Interner}. 
 
@@ -569,11 +569,11 @@ public HiveConfProperties(Properties p) {
 }
 \end{lstlisting}
 
-The code above is responsible for creating a HiveConfProperties instance. It stores the interned (base) Properties in a private field. Right after we want to construct an instance, we intern the given Properties object. The process that \textit{interner.intern(...)} does is explained above. A null check is also a must when we create a new HiveConfProperties, since calling the constructor with null parameter is possible in the code. I found this possibility when I submitted the patch to Apache Hive Jira and "PreCommit" tests failed during the Jenkins build. The \textit{removed} and the \textit{duplicatedPropertiesCount} field is needed for the interning to work as expected. 
+The code above is responsible for creating a HiveConfProperties instance. It stores the interned (base) Properties in a private field. Right after we want to construct an instance, we intern the given Properties object. The process that \textit{interner.intern(...)} does is explained above. A null check is also a must when we create a new HiveConfProperties, since calling the constructor with a null parameter is possible in the code. I found this possibility when I submitted the patch to Apache Hive Jira and "PreCommit" tests failed during the Jenkins build. The \textit{removed} and the \textit{duplicatedPropertiesCount} field is needed for the interning to work as expected. 
 
-If someone calls \textit{HiveConf.unset} funciton, \textit{Properties.remove} (this case \textit{HiveConfProperties.remove} will be called. If the property we want to remove is contained by the interned Properties object, we cannot remove it directly, because other HiveConfProperties may use it. To solve this issue, I introduced the \textit{removed} Properties field to store those values that should no longer be available. So if we want to get the value of a key, we first check if the key is in the \textit{removed} Properties: if the answer is yes, we will consider this property unavailable.
+If someone calls \textit{HiveConf.unset} function, \textit{Properties.remove} (this case \textit{HiveConfProperties.remove} will be called. If the property we want to remove is contained by the interned Properties object, we cannot remove it directly, because other HiveConfProperties may use it. To solve this issue, I introduced the \textit{removed} Properties field to store those values that should no longer be available. So if we want to get the value of a key, we first check if the key is in the \textit{removed} Properties: if the answer is yes, we will consider this property unavailable.
 
-Duplications can occur in my solution: if someone would like to set a property, that is already in the \textit{interned} field, we cannot override it there, so we should add it in the non-interned Properties to return the correct value. However, this way we will have two properties with the same content. Calculating the size of the HashMap will be inaccurate. For solving this issue, I created a counter field called \textit{duplicatedPropertiesCount} to store the number of the duplicates. Knowing this value will allow us to provide an accurate size. 
+Duplications can occur in my solution: if someone would like to set a property, that is already in the \textit{interned} field, we cannot override it there, so we should add it in the non-interned Properties to return the correct value. However, in this way, we will have two properties with the same content. Calculating the size of the HashMap will be inaccurate. For solving this issue, I created a counter field called \textit{duplicatedPropertiesCount} to store the number of the duplicates. Knowing this value will allow us to provide an accurate size. 
 
 Since HiveConfProperties is a subclass of \textit{java.util.Properties} and because of it subclass of \textit{java.util.HashTable}, I provided implementation of its methods.  \textit{hadoop.conf.Configuration} (base class of HiveConf) and \textit{HiveConf} only uses a subset of these functions, so I decided to implement only those, that can be invoked. For the other methods I will throw a \textit{NotImplementedException}. 
 
@@ -612,7 +612,7 @@ public synchronized Object setProperty(String key, String value) {
 }
 \end{lstlisting}
 
-If interned already contains the property to be set, we need to set it in the non-interned Properties. However, this way we will have duplicates, since both Properties instance will contain the same value. Thus, to be able to give a correct size when needed, we need to count these duplicates. If we are setting a value, that had been removed previously, we need to "revalidate" the property. If the value is not changed, we should not set it in the non-interned Properties to avoid unnecessary duplicates. 
+If interned already contains the property to be set, we need to set it in the non-interned Properties. However, in this way, we will have duplicates, since both Properties instance will contain the same value. Thus, to be able to give the correct size when needed, we need to count these duplicates. If we are setting a value, that had been removed previously, we need to "revalidate" the property. If the value is not changed, we should not set it in the non-interned Properties to avoid unnecessary duplicates. 
 
 \subsubsection{mergeProperties helper function}
 To override functions such as \textit{stringPropertyNames} or \textit{keySet} \etc I introduced a helper function. Since for these methods, we need values of the properties from both (non-interned and interned) objects, the helper method will merge the two parts into one Properties. This way we can just delegate the call to the merge Properties object. In the \textit{mergeProperties} I simply iterated through both parts and collected each HashTable entry (if not removed) and returned a new Properties instance. 
@@ -637,7 +637,7 @@ public synchronized int size() {
 	return super.size();
 }
 \end{lstlisting}
-The size of HiveConfProperties is the size of interned + size of non-interned - \textit{duplicatedPropertiesCount}. We have to subtract the \textit{duplicatedPropertiesCount}, because duplicates can happen.Also we have to subtract the size of the removed Properties, since those had been removed.
+The size of HiveConfProperties is the size of interned + size of non-interned - \textit{duplicatedPropertiesCount}. We have to subtract the \textit{duplicatedPropertiesCount}, because duplicates can happen. Also, we have to subtract the size of the removed Properties, since those had been removed.
 
 \subsubsection{containsKey, containsValue}
 \begin{lstlisting}
@@ -665,14 +665,14 @@ public synchronized Object remove(Object key) {
 	return super.remove(key);
 }
 \end{lstlisting}
-We cannot remove the property from the interned Properties (other HiveConfs may use it). We store the value in the \textit{removed} Properties field and in the future the properties stored there will not be valid. If we would like to remove a value from the non-interned field, we can simply do that, since it will not affect any other HiveConfProperties instance.
+We cannot remove the property from the interned Properties (other HiveConfs may use it). We store the value in the \textit{removed} Properties field and in the future, the properties stored there will not be valid. If we would like to remove a value from the non-interned field, we can simply do that, since it will not affect any other HiveConfProperties instance.
 
 \subsubsection{equals}
-Maybe the most complicated method is the \textit{equals} inherited from the HashTable class. Deciding whether an object is equal to another or not should be fast. Merging the two parts can be slow if equals is used widely. Thus, I followed the way that HashTable's equals method works. It is possible to call equals on a HiveConfProperties object but giving a simple \textit{java.util.Properties}. The equals method should also work correctly in this scenario. I will not include the code for \textit{equals} method, because it is to big, and nothing complicated is done there, but the code can be found in the Jira for the issue \cite{hive-conf}.
+Maybe the most complicated method is the \textit{equals} inherited from the HashTable class. Deciding whether an object is equal to another or not should be fast. Merging the two parts can be slow if equals is used widely. Thus, I followed the way that HashTable's equals method works. It is possible to call equals on a HiveConfProperties object but giving a simple \textit{java.util.Properties}. The equals method should also work correctly in this scenario. I will not include the code for \textit{equals} method, because it is too big, and nothing complicated is done there, but the code can be found in the Jira for the issue \cite{hive-conf}.
 
-If other Properties object is a HiveConfProperties, with the help of \textit{instanceof} keyword we can decide whether the other Properties is a HiveConfProperties or not. If the answer is positive, we need to check its interned Properties object as well. As a first step we check their sizes. If they are not equal, we can return false immediately. If sizes are equal, first we will iterate through the non-interned Properties in the "this" object. For each HashTable entries we will check two things: if value is null in the entry, "other" HiveConfProperties should not contain the key, otherwise the two object cannot be the same, so we can return false. If value for the entry is not null, value from "this" should be equal to value from the other object. 
+If other Properties object is a HiveConfProperties, with the help of \textit{instanceof} keyword we can decide whether the other Properties is a HiveConfProperties or not. If the answer is positive, we need to check its interned Properties object as well. As a first step, we check their sizes. If they are not equal, we can return false immediately. If sizes are equal, first we will iterate through the non-interned Properties in the "this" object. For each HashTable entries we will check two things: if the value is null in the entry, "other" HiveConfProperties should not contain the key, otherwise, the two objects cannot be the same, so we can return false. If the value for the entry is not null, the value from "this" should be equal to value from the other object. 
 
-If all entries from the non-interned Properties are contained by the other Properties object. We still need to check the same for this.interned Properties. The code will be the same expect, we will iterate through the entries of the interned Properties. 
+If all entries from the non-interned Properties are contained by the other Properties object. We still need to check the same for this.interned Properties. The code will be the same except, we will iterate through the entries of the interned Properties. 
 
 The code is simpler if the other object is not a HiveConfProperties. We do not need the check two parts. We can just iterate through the entries of the "other" Properties and do the same checks as mentioned before.
 
@@ -683,7 +683,7 @@ HiveConf is a descendant of Configuration class, which comes from the Hadoop Com
 	\item Continue to use private visibility, and change the type of the field in HiveConf using reflection.
 \end{enumerate}
 
-Changing the visibility in Hadoop may not be the ideal design choice, since Hive should depend on Hadoop and not the other way around. I decided to change the type using reflection in Hive side. 
+Changing the visibility in Hadoop may not be the ideal design choice since Hive should depend on Hadoop and not the other way around. I decided to change the type using reflection in Hive side. 
 
 \begin{lstlisting}
 try {
@@ -715,11 +715,11 @@ HiveConf has an additional Properties object called \textit{origProp}. The value
 	\caption{After using HiveConfProperties}
 \end{figure}
 
-Comparing the heap dumps shows the benefits of interning the Properties in HiveConf. Without the use of HiveConfProperties one configuration object conaining 1910 properties used around 415 Kilobytes. With the use of HiveConfProperties it was reduced to 265 Kilobytes.It is nearly 40\% memory saved for each HiveConf. 
+Comparing the heap dumps shows the benefits of interning the Properties in HiveConf. Without the use of HiveConfProperties, one configuration object containing 1910 properties used around 415 Kilobytes. With the use of HiveConfProperties, it was reduced to 265 Kilobytes. It is nearly 40\% memory saved for each HiveConf. 
 
-When we use Hive on Spark running with a large number of cores per executor, we have about 10\% of memory overhead due to multiple HiveConfs . This can be reduced significantly using my solution. 
+When we use Hive on Spark running with a large number of cores per executor, we have about 10\% of memory overhead due to multiple HiveConfs. This can be reduced significantly using my solution. 
 
 \section{Future work around configuration objects}
-The issue I reported is  still ongoing, since tests are needed to see if my patch works correctly in every scenario. I also provided a test class, which needs to be expanded, to cover all the scenarios a Properties object can be used by HiveConf. 
+The issue I reported is still ongoing since tests are needed to see if my patch works correctly in every scenario. I also provided a test class, which needs to be expanded, to cover all the scenarios a Properties object can be used by HiveConf. 
 
-Hadoop also has an implementation of the Configuration class, called JobConf. These objects are also present in HS2 and causes memory overhead the same way as HiveConf does. There is an open source Jira that was intended to solve the duplication without getting \textit{ConcurrentModificationException}, but the memory problem was not resolved just prevented throwing the exception \cite{hive-jobconf}. The solution I provide for HiveConf could also be used for getting rid of the duplication in JobConf.
+Hadoop also has an implementation of the Configuration class, called JobConf. These objects are also present in HS2 and cause memory overhead the same way as HiveConf does. There is an open source Jira that was intended to solve the duplication without getting \textit{ConcurrentModificationException}, but the memory problem was not resolved just prevented throwing the exception \cite{hive-jobconf}. The solution I provide for HiveConf could also be used for getting rid of the duplication in JobConf.
