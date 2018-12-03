@@ -92,7 +92,7 @@ If I want to measure the memory usage of Hive, I need a something to create and 
 For creating heap dumps and statistics of the memory, I decided to use a command line tool. In contrast of a UI tool, it has the benefits to generate heap dumps and statistics automatically. 
 
 \subsubsection{jmap}
-\textit{jmap} \cite{jmap-jcmd} can be used to obtain heap dumps and histograms from a running java process.
+\textit{jmap} \cite{jmap-jcmd} can be used to obtain heap dumps and histograms from a running Java process.
 
 To gather information about a running Java program we need its process ID (PID). Using this we can easily create the heap dump with the \textit{-dump} option. If we do not want to analyze large heap dumps, just to get the objects that reserve the most memory, we can use the \textit{-histo} option. It will print a histogram of the heap, containing each Java class, the number of objects and memory sizes per class.
 
@@ -101,7 +101,7 @@ To gather information about a running Java program we need its process ID (PID).
 
 The usage of jcmd is similar to jmap. For creating heap dumps we can use \textit{jcmd <PID> GC.heap\_dump}. If we want to obtain class histogram we can do that with the \textit{jcmd <PID> GC.class\_histogram} command. With the \textit{jcmd <PID> GC.heap\_info} command we can gather basic information of the heap: \eg young and old memory of the process.
 
-I decided to use jcmd in my future work to gather memory information automatically and generate heap dumps at the measuring points identified in the previous section.
+I decided to use jcmd in my future work to gather memory information automatically and generate heap dumps at the measuring points, identified in the previous section.
 
 \subsection{Tools for analysing heap dumps}
 Creating heap dumps with a CLI tool is easier, however analysing those requires a tool with user interface. 
@@ -117,7 +117,7 @@ With the "classes view" we can get information about the reserved memory and num
 \subsubsection{JXRay}
 JXRay \cite{jxray} is a memory analysis tool for Java applications. It creates an HTML report of a given heap dump. It can automatically detect common problems, like data duplication or non-optimal use of data structures. 
 
-JXRay can give us a compact report, even if the heap dump analyzed is 10's of GB. It can calculate how much memory taken by a collection's internal representation and their workload since JXRay knows about the internal representation of common java collections (HashMap, ArrayList \etc).
+JXRay can give us a compact report, even if the heap dump analyzed is 10's of Gigabytes. It can calculate how much memory is taken by a collection's internal representation and their workload since JXRay knows about the internal representation of common java collections (HashMap, ArrayList \etc).
 
 \begin{figure}[H]
 	\includegraphics[width=150mm, keepaspectratio]{figures/jxray_sample.png}
@@ -138,7 +138,7 @@ In order to use jcmd from Java, I needed a way to execute a terminal command fro
 
 Now that I can run a command line tool from Java, I will need the process ID of HiveServer2. Since Hive uses Java 8, I cannot use the new Process API that Java 9 provides. With the help of the \textit{ManagementFactory} class, we can get the managed bean of the runtime system of the JVM. It will return a class implementing the \textit{RuntimeMXBean} interface. The name of the running JVM contains the ID of the process. With the \textit{RuntimeMXBean.getName()} method, I was able to get the PID of HiveServer2. The method will return a string in a format of \textit{pid@hostname}. Using the split method we can get our application's process ID.
 
-To avoid code duplication I created a method for getting the ProcessBuilder which contains the given command and the PID for HiveServer2 is already set.
+To avoid code duplication I created a method for getting the ProcessBuilder which contains the given command and the PID of HiveServer2 is already set.
 
 \begin{lstlisting}
 private ProcessBuilder getProcessBuilder(String subCommand){
@@ -194,9 +194,9 @@ To do this, I made a function (printResultToCSV) which will parse the given stri
 \caption{Sample output of the parsing}
 \end{table}
 \subsection{How HiveServer2 uses memory}
-I have the code to measure the memory of Hive and get a general  of the usage at certain phases. With this, I am able to get a better understanding when and why memory goes high. I would like to get an answer to these questions: How does the number of joins increase the memory? Which type of query generates a lot of memory usage: union, group by? If we increase the number of partitions, how it affects the heap size? In this section, these questions will be answered.
+I have the code to measure the memory of Hive and get a general picture of the usage at certain phases. With this, I am able to get a better understanding when and why memory goes high. I would like to get an answer to these questions: How does the number of joins increase the memory? Which type of query generates a lot of memory usage: union, group by? If we increase the number of partitions, how it affects the heap size? In this section, these questions will be answered.
 
-The first step is to create a managed table where I will run my queries in the future. Hive faces memory problems when we have a highly partitioned table. I decided that for the first run, 20 000 partitions will be enough. 
+The first step is to create a managed table where I will run my queries in the future. Hive faces memory problems when we have a highly partitioned table. I decided, that for the first run, 20 000 partitions will be enough. 
 
 The second step was to create queries which will be submitted to Hive. The first question was how the number of joins affects memory? To answer it, I have created queries with an increasing number of joins included. I used self-joins and only increased the number to three. The pattern was clear for only four measures: a simple select query without join operators, and queries with one, two and three. From the output of my parsed CSV file, I generated the following chart that shows the memory increase.
 
@@ -300,9 +300,9 @@ The community agreed that the way URIs store these paths is a waste, and could b
 \end{itemize}
 \section{Solution ideas}
 \subsection{Solution 1: WeakReference}
-A WeakReferenced object works in a way, that if the object is only weakly reachable (its only reference is a WeakReference), it will not prevent the object to be garbage collected. We would have a WeakReference to the URI and when the GC runs it can collect the URIs if we do not have a strong reference to it. 
+A WeakReferenced object works in a way, that if the object is only weakly reachable (its only reference is a WeakReference), it will not prevent the object to be garbage collected. We would have a WeakReference to the URI and when the GC runs, it can collect the URIs if we do not have a strong reference to it. 
 
-When someone wants to get the URI representation of the path and calls the \textit{toURI} function, we need to check if the URI exists through the WeakReference or not. If it exists we can just get it because we have a WeakReference to it. If it does not, we need to recreate the URI from its parts. 
+When someone wants to get the URI representation of the path and calls the \textit{toURI} function, we need to check if the URI exists through the WeakReference or not. If it exists, we can just get it because we have a WeakReference to it. If it does not, we need to recreate the URI from its parts. 
 
 \subsection{Solution 2: SoftReference}
 Using SoftReference would be a more conservative solution. If the Garbage Collector finds an object that is only softly reachable, it does not dump the object instantly. An object with a SoftReference will only be collected at memory demand. This way before an Out Of Memory error is thrown, the GC can free all URIs. If the GC collected the URI we would do the same as mentioned before: recreate the URI from the stored parts when needed. 
@@ -319,7 +319,7 @@ A possible solution is to remove the URI completely and only keep 4 parts of the
 \subsection{Conclusion}
 For the second thought, I realized that using WeakReference would not be the best decision. It would almost be the same as creating the URI on demand, since whenever the GC runs, it will collect the URIs immediately and when toURI is called we would have to recreate it anyway. The only way to decide which solution might be the best is to measure the performance of both approach. 
 
-I also analyzed the code base of Hadoop to see how \textit{Path.toUri} method is usually used. Most often we just want to ask for certain parts of the Path object and not really using the URI itself. For example: \textit{pathObject.toUri().getPath()} to get the path or \textit{pathObject.toUri().getScheme()} to get the scheme. Considering only this, solution 3 would be the most effective, since we are able to get the path/scheme/authority or fragment directly from the Path object and we do not need to first transform it to an URI and than ask for the value we need. 
+I also analyzed the code base of Hadoop to see how \textit{Path.toUri} method is usually used. Most often we just want to ask for certain parts of the Path object and not really using the URI itself. For example: \textit{pathObject.toUri().getPath()} to get the path, or \textit{pathObject.toUri().getScheme()} to get the scheme. Considering only this, solution 3 would be the most effective, since we are able to get the path/scheme/authority or fragment directly from the Path object and we do not need to first transform it to an URI, and than ask for the value we need. 
 
 \section{A simple performance test for toURI}
 I created a really simple test, to decide which solution would solve the issue without a significant CPU overhead. 
@@ -617,7 +617,7 @@ If interned already contains the property to be set, we need to set it in the no
 \subsubsection{mergeProperties helper function}
 To override functions such as \textit{stringPropertyNames} or \textit{keySet} \etc I introduced a helper function. Since for these methods, we need values of the properties from both (non-interned and interned) objects, the helper method will merge the two parts into one Properties. This way we can just delegate the call to the merge Properties object. In the \textit{mergeProperties} I simply iterated through both parts and collected each HashTable entry (if not removed) and returned a new Properties instance. 
 
-Overriding for example the keySet function will look like this:
+\noindent Overriding for example the keySet function will look like this:
 \begin{lstlisting}
 @Override
 public Set<Object> keySet() {
@@ -668,18 +668,18 @@ public synchronized Object remove(Object key) {
 We cannot remove the property from the interned Properties (other HiveConfs may use it). We store the value in the \textit{removed} Properties field and in the future, the properties stored there will not be valid. If we would like to remove a value from the non-interned field, we can simply do that, since it will not affect any other HiveConfProperties instance.
 
 \subsubsection{equals}
-Maybe the most complicated method is the \textit{equals} inherited from the HashTable class. Deciding whether an object is equal to another or not should be fast. Merging the two parts can be slow if equals is used widely. Thus, I followed the way that HashTable's equals method works. It is possible to call equals on a HiveConfProperties object but giving a simple \textit{java.util.Properties}. The equals method should also work correctly in this scenario. I will not include the code for \textit{equals} method, because it is too big, and nothing complicated is done there, but the code can be found in the Jira for the issue \cite{hive-conf}.
+Maybe the most complicated method is the \textit{equals} inherited from the HashTable class. Deciding whether an object is equal to another or not should be fast. Merging the two parts can be slow if equals is used widely. Thus, I followed the way that HashTable's equals method works. It is possible to call equals on a HiveConfProperties object by giving a simple \textit{java.util.Properties}. The equals method should also work correctly in this scenario. I will not include the code for \textit{equals} method, because it is too big, but the code can be found in the Jira for the issue \cite{hive-conf}.
 
-If other Properties object is a HiveConfProperties, with the help of \textit{instanceof} keyword we can decide whether the other Properties is a HiveConfProperties or not. If the answer is positive, we need to check its interned Properties object as well. As a first step, we check their sizes. If they are not equal, we can return false immediately. If sizes are equal, first we will iterate through the non-interned Properties in the "this" object. For each HashTable entries we will check two things: if the value is null in the entry, "other" HiveConfProperties should not contain the key, otherwise, the two objects cannot be the same, so we can return false. If the value for the entry is not null, the value from "this" should be equal to value from the other object. 
+With the help of \textit{instanceof} keyword we can decide whether the other Properties is a HiveConfProperties or not. If the answer is positive, we need to check its interned Properties object as well. As a first step, we check their sizes. If they are not equal, we can return false immediately. If sizes are equal, first we will iterate through the non-interned Properties in the "this" object. For each HashTable entries we will check two things: if the value is null in the entry, "other" HiveConfProperties should not contain the key, otherwise, the two objects cannot be the same, so we can return false. If the value for the entry is not null, the value from "this" should be equal to value from the other object. 
 
-If all entries from the non-interned Properties are contained by the other Properties object. We still need to check the same for this.interned Properties. The code will be the same except, we will iterate through the entries of the interned Properties. 
+If all entries from the non-interned Properties are contained by the other Properties object, we still need to check the same for this.interned Properties. The code will be the same except, we will iterate through the entries of the interned Properties. 
 
 The code is simpler if the other object is not a HiveConfProperties. We do not need the check two parts. We can just iterate through the entries of the "other" Properties and do the same checks as mentioned before.
 
 \subsection{Applying the solution in HiveConf}
 HiveConf is a descendant of Configuration class, which comes from the Hadoop Common library. The properties field that is causing the memory overhead is also in the base class and its visibility is private. We have two options to resolve this:
 \begin{enumerate}
-	\item Change the visibility of properties field to protected, so in HiveConf we can change the type of the field to HiveConfProperties simply
+	\item Change the visibility of properties field to protected, so in HiveConf we can simply change the type of the field to HiveConfProperties
 	\item Continue to use private visibility, and change the type of the field in HiveConf using reflection.
 \end{enumerate}
 
@@ -697,7 +697,7 @@ try {
 }
 \end{lstlisting}
 
-I used \textit{FieldUtils} class from \textit{commons-lang} library to access the properties field in the superclass and change reapply the Properties object wrapped in a HiveConfProperties.
+I used \textit{FieldUtils} class from \textit{commons-lang} library to access the properties field in the superclass and reapply the Properties object wrapped in a HiveConfProperties.
 
 HiveConf has an additional Properties object called \textit{origProp}. The values contained by the \textit{origProp} objects for different HiveConfs are also very similar, so interning those as well would also remove some memory overhead. 
 
@@ -708,7 +708,6 @@ HiveConf has an additional Properties object called \textit{origProp}. The value
 	\caption{Before using HiveConfProperties}
 \end{figure}
 
-\subsection{Memory win by the change}
 \begin{figure}[H]
 	\includegraphics[width=150mm, keepaspectratio]{figures/hiveconf_interned.png}
 	\centering

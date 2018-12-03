@@ -14,16 +14,16 @@ The maximum data size allowed in a traditional RDBMS is 10's of Terabytes. Howev
 Hive is a great choice if we want to analyze large, relatively static data sets, fast querying is not necessary and easy, low-cost scalability is required. RDBMS provides fast responses for analyzing data dynamically, but scalability and maximum data size are limited.
 
 \section{Data storage}
-Hive structure data in the following units  \cite{Hive-paper, Hive-apache}:
+Hive structures data in the following units  \cite{Hive-paper, Hive-apache}:
 \begin{itemize}
 \item \textbf{Databases}: namespaces to avoid conflicts of table, partition or bucket names.
-\item \textbf{Tables}: storage unit for data with the same schema. Tables maps to directories in HDFS.
-\item \textbf{Partitions}: Tables can have many partition keys. These will determine how data is stored. In HDFS partitions map to subdirectories in the table's directory. This way we can speed up the analysis. Instead of running the query in the whole table, Hive will only run our query in the relevant partitions (see example below). Partition columns are virtual, which means they are not part of the data itself.
+\item \textbf{Tables}: storage unit for data with the same schema. Tables map to directories in HDFS.
+\item \textbf{Partitions}: Tables can have many partition keys. These will determine how data is stored. In HDFS partitions map to subdirectories in the table's directory. This way, we can speed up the analysis. Instead of running the query in the whole table, Hive will only run our query in the relevant partitions (see example below). Partition columns are virtual, which means they are not part of the data itself.
 \item \textbf{Buckets}: Data can be divided into buckets based on the hash value of a column. These are helpful for efficiently sample data. Buckets are stored in files in the table's or partition's directory.
 \end{itemize}
 
 \subsection{Example}
-This example shows how Hive data units map to HDFS and and how partitioning tables can speed up queries.
+This example shows how Hive data units map to HDFS and how partitioning tables can speed up queries.
 
 Hive tables map to \texttt{<warehouse\_root\_directory>/table\_name} directory. As default, the warehouse root directory is /user/hive/warehouse. This can be changed with the corresponding hive configuration value.
 \begin{lstlisting}
@@ -34,7 +34,6 @@ Hive tables map to \texttt{<warehouse\_root\_directory>/table\_name} directory. 
 The above SQL statement will create a table with two columns and two partitions and it will be stored in  \texttt{/user/hive/warehouse/test\_table} directory in HDFS. For every distinct date and hour value, a partititon will exists. Although, the partition columns are not part of the data, they are stored in the table metadata. 
 
 New partitions can be added either with the INSERT or the ALTER statement. These commands will create the corresponding HDFS directories: 
-
 \texttt{/user/hive/warehouse/test\_table/date=2018-01-01/hour=12 and /user/hive/warehouse/test\_table/date=2018-01-02/hour=11}.
 
 \begin{lstlisting}
@@ -65,7 +64,7 @@ The main components of Hive are the following \cite{Hive-paper}:
 \begin{itemize}
 	\item \textbf{Driver}: manages the lifecycle of a HiveQL query by creating a session for it. The driver also collects the result after the execution phase.
 	\item  \textbf{MetaStore}: stores metadata about tables, columns or partitions. For example, it stores the table schema and location.
-	\item \textbf{Compiler}: compiles the HiveQL statement and generates the execution plan using the partition and table metadata obtained from the MetaStore. First, it parses the query and does semantic analysis. Then converts it into AST (Abstract Syntax Tree) and after compatibility checking to a DAG of Map and Reduce tasks (if Hadoop MapReduce is the execution engine). 
+	\item \textbf{Compiler}: compiles the HiveQL statement and generates the execution plan using the partition and table metadata obtained from the MetaStore. First, it parses the query and does semantic analysis. Then converts it into AST (Abstract Syntax Tree) and after compatibility checking, to a DAG of Map and Reduce tasks (if Hadoop MapReduce is the execution engine). 
 	\item \textbf{Optimizer}: transformations are done to get an optimized DAG for better performance. It is an evolving component. In the earlier stage, only rule-based optimization was available which performed column pruning and predicate pushdown. Later, map-side join was introduced and several other join optimization, also cost-based optimization was added.
 	\item \textbf{Execution Engine}: executes the plan created by the compiler. The plan is a DAG of stages. The engine manages the dependencies between these stages and executes them in the corresponding component. Hive is compatible with 3 execution engines: MapReduce, Apache TEZ and Spark which can run in Hadoop YARN.
 	\item \textbf{HiveServer2}: a service that provides a thrift interface so clients can execute queries against Hive. Thrift is an RPC (Remote Call Procedure) framework for defining services for multiple languages.
@@ -73,16 +72,16 @@ The main components of Hive are the following \cite{Hive-paper}:
 \end{itemize}
 
 \begin{figure}[H]
-	\includegraphics[width=150mm, keepaspectratio]{figures/Hive_architecture.png}
+	\includegraphics[width=140mm, keepaspectratio]{figures/Hive_architecture.png}
 	\centering
 	\caption{Hive architecture}
 \end{figure}
 
-Clients can connect to  using its Thrift Service. HS2 supports authentication of the clients using Kerberos or LDAP authentication. Hive Metastore server also supports Kerberos authentication for Thrift clients.
+Clients can connect to HiveServer2 using its Thrift Service. HS2 supports authentication of the clients using Kerberos or LDAP authentication. Hive Metastore server also supports Kerberos authentication for Thrift clients.
 
 Sentry is a role-based authorization module for Hadoop, so we can control the priviliges for authenticated users. Hive can use Sentry over an "authorization hook", which Sentry registers to Hive configuration file if secure cluster is enabled. 
 
-HMS uses DataNucleus to persist metadata, so any relational database supported by it cal be used: it can be either embedded (\eg Derby) or remote (\eg MySQL) Metastore database.
+HMS uses DataNucleus to persist metadata, so any relational database supported by it can be used: it can be either embedded (\eg Derby) or remote (\eg MySQL) Metastore database.
 
 \section{Life of a Query}
 \begin{figure}[H]
@@ -99,9 +98,9 @@ The logical plan generator (6) transforms the internal representation to an oper
 Optimization takes place for better performance (7). Most common optimizations are: 
 \begin{itemize}
 	\item Column pruning, so only columns needed by the query are kept
-	\item Predicate pushdown: this way the rows can be filtered as soon as possible
+	\item Predicate pushdown: this way, the rows can be filtered as soon as possible
 	\item Partition pruning: prunes partitions that do not satisfy the predicate
-	\item Map-side join: if joining two tables and one of them is small, map-side join can be done. This way the small table will be copied to the memory all the Map nodes.
+	\item Map-side join: if we join two tables and one of them is small, map-side join can be done. This way, the small table will be copied to the memory of all the Map nodes.
 	\item \etc
 \end{itemize}
 
@@ -110,13 +109,13 @@ At physical plan generation (8) the logical plan is split into a series of Map, 
 The Driver gets back the physical plan (9) and sends (10, 11) it to the corresponding execution engine (which is MapReduce by default). In this case, Hadoop executes the series of Map and Reduce tasks an returns the result to the Driver (12, 13), which sends it to the user (14).
 
 \section{Hive memory limitations}
-HiveServer2 and Hive Metastore require massive resources, especially memory wise. If we want to run up to 40 concurrent queries the recommended heap size range is 12-16 GB. Once we go above 16 GB it is recommended to split HS2 into multiple instances and load-balance them \cite{Hive-memory-problems}.
+HiveServer2 and Hive Metastore require massive resources, especially memory wise. If we want to run up to 40 concurrent queries, the recommended heap size range is 12-16 GB. Once we go above 16 GB it is recommended to split HS2 into multiple instances and load-balance them \cite{Hive-memory-problems}.
 
 Although, with correct configuration and setup we can make our HiveServer2 instance long living, crashes can occur because of Out Of Memory error (OOM) in certain use-cases. Thus, minimizing the memory footprint whenever we can is a must.
 
 \noindent The memory reserved by HiveServer2 can grow significantly in these situations  \cite{Hive-memory-problems}: 
 \begin{itemize}
-	\item When we have many table partitions, HS2 needs to load all the partition metadata from HMS. This can cause a real memory issue, and  HiveServer can run out of heap memory and can crash.
+	\item When we have many table partitions, HS2 needs to load all the partition metadata from HMS. This can cause a real memory issue, and  HiveServer can run out of heap memory and crash.
 	\item Concurrent connections can be made to HS2, and memory is directly proportional to the number of connections. 
 	\item Complex queries that access a large number of partitions from multiple tables can easily crash HS2.
 \end{itemize}
