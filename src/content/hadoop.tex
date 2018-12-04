@@ -3,7 +3,7 @@ Apache Hadoop is an open source distributed framework for managing, processing a
 
 \noindent The base of the Hadoop framework contains the following modules:
 \begin{itemize}
-	\item HDFS - Hadoop Distributed File System: designed to store large data sets reliably and stream those at high bandwidth to user applications.
+	\item HDFS - Hadoop Distributed File System: designed to store large data sets reliably and stream those at high bandwidth to user applications
 	\item Hadoop MapReduce: an implementation of the MapReduce programming model for large data processing
 	\item YARN - Yet Another Resource Negotiator: a resource management and job scheduling technology
 	\item Hadoop Common: contains libraries and utilities for other Hadoop modules
@@ -17,15 +17,15 @@ HDFS is the file system of Hadoop. It stores file system metadata and applicatio
 	\item \textbf{Hardware failure}: Hardware failures should be considered as normal, rather than an exception. An HDFS instance consists hundreds or thousands of components so this means that some of them will always be non-functional. Therefore, fault detection and automatic recovery is a must.
 	\item \textbf{Streaming Data Access}: HDFS was designed for batch processing rather than interactive use. Therefore, HDFS users need streaming access to their data. This means that high throughput is more important than low latency.
 	\item \textbf{Large Data Sets}: The size of a typical HDFS file is gigabytes to terabytes. Thus, the file system is tuned to support large files. 
-	\item \textbf{Simple Coherency}: HDFS follows WORM (Write-Once-Read-Many) model. A file, once written should not be changed except for appends and truncates.  This assumption simplifies data coherency issues. A MapReduce application fits perfectly for this model.
-	\item \textbf{Moving computation}: A computation is much more efficient if it is executed near the data it operates on. It is especially true for big data. 
+	\item \textbf{Simple Coherency}: HDFS follows the WORM (Write-Once-Read-Many) model. A file, once written, should not be changed except for appends and truncates.  This assumption simplifies data coherency issues. A MapReduce application fits perfectly for this model.
+	\item \textbf{Moving computation}: A computation is much more efficient if it is executed near the data it operates on. This is especially true for big data. 
 	\item \textbf{Portability}: HDFS was designed to port from one platform to another with ease. 
 \end{itemize}
 
 \subsection{NameNode}
-NameNode keeps the directory tree of all files in the file system and tracks where data is kept across the cluster, it does not store the files. Clients talk to the NameNode whenever they want to locate a file. The NameNode's response is a list of relevant DataNode servers where the data is available. 
+NameNode keeps the directory tree of all files in the file system and tracks where data is kept across the cluster; it does not store the files. Clients talk to the NameNode whenever they want to locate a file. The NameNode's response is a list of relevant DataNode servers where the data is available. 
 
-As a result of this approach, the NameNode is a Single Point of Failure in the HDFS cluster. Whenever the NameNode goes down, the file system becomes offline.
+As a result of this approach, NameNode is a Single Point of Failure in the HDFS cluster. Whenever the NameNode goes down, the file system goes offline.
 \begin{figure}[H]
 	\includegraphics[width=80mm, keepaspectratio]{figures/namenode_problem.png}
 	\centering
@@ -50,16 +50,16 @@ It is important to remember that the Secondary NameNode is not a real backup Nam
 \subsection{DataNodes \cite{Shvachko:2010:HDF:1913798.1914427}}
 On a DataNode, a block is represented by two files in the native file system. The first contains the data itself, the second is the metadata.
 
-On startup, the DataNodes connect to the NameNode and perform a handshake. This will verify the namespace ID and software version of the DataNodes. If one of them does not match with the NameNode's value, the DataNode automatically shuts down. After a successful handshake, the DataNode registers with the NameNode. DataNode will store it's internal identifier. If restart occurs the DataNodes will be recognizable with the ID, even if they get a different IP address or port. After the ID is registered to the NameNode it will never change. 
+On startup, the DataNodes connect to the NameNode and perform a handshake. This will verify the namespace ID and software version of the DataNodes. If one of them does not match the NameNode's value, the DataNode automatically shuts down. After a successful handshake, the DataNode registers with the NameNode. The DataNode will store its internal identifier. If a restart occurs, the DataNodes will be recognizable with the ID, even if they get a different IP address or port. After the ID is registered to the NameNode, it will never change. 
 
- When a DataNode is registered, it sends a block report immediately. It contains block ID, generation stamp and the length of each block the DataNode hosts. To provide up-to-date information to the NameNode, reports are sent every hour. 
+ When a DataNode is registered, it sends a block report immediately. It contains a block ID, generation stamp and the length of each block the DataNode hosts. To provide up-to-date information to the NameNode, reports are sent every hour. 
 
-DataNodes send heartbeats to the NameNode. It ensures the NameNode that the DataNode is operating and block replicas of the server are available. If the NameNode does not receive a heartbeat from a DataNode it will consider the node to be out of service. The default heartbeat interval is three seconds.
+DataNodes send heartbeats to the NameNode. This ensures the NameNode that the DataNode is operating and block replicas of the server are available. If the NameNode does not receive a heartbeat from a DataNode it will consider the node to be out of service. The default heartbeat interval is three seconds.
 
 \subsection{HDFS Client \cite{Shvachko:2010:HDF:1913798.1914427}}
 User applications can access the file system using the HDFS client which exports the HDFS file system interface. HDFS supports operations similar to a traditional file system: read, write, create or delete files and create or delete directories. The user can refer to files or directories using paths in the namespace.
 
-When someone reads a file, HDFS Client asks the NameNode for the list of DataNodes that host replicas of the blocks of the file. Then it will directly contact the DataNode and request the desired block.
+When someone reads a file, the HDFS client asks the NameNode for the list of DataNodes that host replicas of the blocks of the file. Then it will directly contact the DataNode and request the desired block.
 
 \begin{figure}[H]
 	\includegraphics[width=100mm, keepaspectratio]{figures/hdfs_client.png}
@@ -76,8 +76,8 @@ MapReduce is a programming model for processing data sets. Users specify two fun
 \end{itemize}
 
 Programs written in MapReduce are automatically executed parallelly on large clusters. Using this, programmers with no experience in parallel programming and distributed systems can utilize the available resources on the cluster.
-\paragraph{Example \cite{MapReduce-example}}
-This example shows how MapReduce handles the problem of counting words. Let's say, we have the following list of words: 
+\paragraph{Example \cite{MapReduce-example} \label{example}}
+This example shows how MapReduce handles the problem of counting words. Let's say we have the following list of words: 
 \begin{center}
 	\textbf{Dear, Bear, River, Car, Car, River, Deer, Car, Bear}
 \end{center}
@@ -98,11 +98,11 @@ This example shows how MapReduce handles the problem of counting words. Let's sa
 \subsubsection{Parallel processing}
 In MapReduce we divide the job among multiple nodes, so they can work on their part of the data parallelly. This way, data processing is done by multiple machines instead of one, so the time is significantly reduced.
 \subsubsection{Data locality}
-In Hadoop MapReduce, instead of moving data into the processing unit, we move the processing unit to the data. The traditional approach has its limit when it comes to processing big data. Moving huge data is costly: network issues can occur and the master node (where data is stored) can get overloaded and may fail. 
+In Hadoop MapReduce, instead of moving data into the processing unit, we move the processing unit to the data. The traditional approach has its limit when it comes to processing big data. Moving large amounts of data is costly: network issues can occur and the master node (where data is stored) can get overloaded and may fail. 
 
 However, the MapReduce approach is very cost efficient, since all the nodes are working simultaneously on their part of the data and there is no chance of a node getting overloaded.
 
-Using Hadoop we just need to provide the map and reduce functions, the rest is done by the framework.  The word count example would look like the following in Java:
+Using Hadoop we just need to provide the map and reduce functions, the rest is done by the framework.  The word count example (\ref{example}) would look like the following in Java:
 \subsubsection*{Map}
 \begin{lstlisting}[language=Java]
 	public void map(LongWritable key, Text value, Context context) throws IOException,InterruptedException {
@@ -158,16 +158,16 @@ The traditional way to execute MapReduce operations is that the users specify th
 \begin{itemize}
 	\item it is not a high-level language for data processing
 	\item data scientists do not understand Java. They came from the world of traditional databases, where SQL is used.
-	\item even a simple problem (like word counting) resulted in hundreds of lines of code.
+	\item even a simple problem can result in hundreds of lines of code.
 \end{itemize}
 
-Although, the Hadoop MapReduce framework is written in Java, with the help of Streaming API we can create Map and Reduce functions in any languages.
+Although, the Hadoop MapReduce framework is written in Java, with the help of Streaming API we can create Map and Reduce functions in any language.
 
-MapReduce gives us a solution for many big data problems. However, for some scenarios, MapReduce is not the ideal choice: \eg real-time analysis. In Hadoop 1.0 we could not use components other than MapReduce (for example Apache Storm which is ideal for real-time computation). The desire for utilizing the potential provided by the distributed file system (HDFS) in other solutions has grown. YARN provides a solution to fulfill this claim.
+MapReduce gives us a solution for many big data problems. However, for some scenarios, MapReduce is not the ideal choice: \eg real-time analysis. In Hadoop 1.0 we could not use components other than MapReduce (like Apache Storm which is ideal for real-time computation). The desire for utilizing the potential provided by the distributed file system (HDFS) for other solutions grew. YARN was the answer to fulfill this claim.
 
-\section{Yarn \cite{Hadoop-current}}
+\section{YARN  \cite{Hadoop-current}}
 \subsection{Hadoop 1.0 resource management}
-Previous to Hadoop 2.0, a single JobTracker had the responsibility to monitor the resources and distribute the MapReduce jobs for the DataNodes and monitor these jobs. 
+Previous to Hadoop 2.0, a single JobTracker was responsible for monitoring resources, distributing MapReduce jobs for the DataNodes and monitoring these jobs. 
 
 In Hadoop 1.0 the MapReduce module was responsible for cluster resource management and data processing as well.
 
@@ -184,7 +184,7 @@ Clients submit jobs to the JobTracker which turns to the NameNode. It returns th
 
 \noindent The architecture of Hadoop 1.0 has many problems \cite{Hadoop1.0-problems}:
 \begin{itemize}
-	\item  It \textbf{limits scalability} since the JobTracker runs on a single machine doing multiple tasks, it becomes a bottleneck: resource management, job and task scheduling, monitoring are done by the JobTracker.
+	\item  It \textbf{limits scalability} since the JobTracker runs on a single machine doing multiple tasks, it becomes a bottleneck: resource management, job and task scheduling, and monitoring are done by the JobTracker.
 	\item JobTracker is a \textbf{Single Point of Failure}. If it goes down, all the jobs are halted.
 	\item In Hadoop 1.0, \textbf{JobTracker is tightly integrated with the MapReduce} module so only MapReduce applications can run on Hadoop. Although MapReduce is powerful enough to express many data analysis algorithms (mostly batch-driven data analysis), it is not always the optimal paradigm. It is often desirable to run other computation paradigms on Hadoop, like real-time analysis and Message-Passing approach, \etc. Since HDFS makes it easy to store large amounts of data it is desirable to utilize this for other big data problems.
 \end{itemize}
@@ -202,12 +202,12 @@ The fundamental idea behind YARN is to split up the functionalities of resource 
 
 \textbf{ResourceManager} is responsible for distributing the resources among all the applications in the system. The \textbf{NodeManager} is a per-machine agent who monitors the resource usages (CPU, memory, network, disk) of the containers and reports them to the ResourceManager. 
 
-The \textbf{ApplicationMaster} is framework specific, and its task is to ask the ResourceManager for resources when needed. It is also working with the NodeManager to execute and monitor tasks.
+The \textbf{ApplicationMaster} is framework-specific, and its task is to ask the ResourceManager for resources when needed. It is also working with the NodeManager to execute and monitor tasks.
 
 The ResourceManager is divided into two main components: Scheduler and ApplicationsManager.
 \begin{itemize}
 	\item The Scheduler is responsible for allocating resources to applications running in the cluster. It schedules based on the resource requirements of each application. The Scheduler does not perform monitoring or status tracking.
-	\item The ApplicationsManager accepts job-submissions. It negotiates the first container for executing the application specific ApplicationMaster. It is also responsible for restarting the ApplicationMaster if it fails. 
+	\item The ApplicationsManager accepts job submissions. It negotiates the first container for executing the application-specific ApplicationMaster. It is also responsible for restarting the ApplicationMaster if it fails. 
 \end{itemize}
 
 \begin{figure}[H]

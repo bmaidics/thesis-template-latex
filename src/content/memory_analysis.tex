@@ -1,21 +1,21 @@
 \chapter{Memory Analysis}
-To get a better insight on how Hive uses memory, I needed to build a basic model when and why Hive's reserved memory grows. During my work, I mainly focused on HiveServer2. The first step toward the model building was to get basic knowledge about Hive's code base and the query compilation process. The query life cycle mentioned in the previous chapter helped, but I had to find those steps in the code. If I have these points I am able to start measuring and maybe find some memory wastes.
+To get a better insight on how Hive uses memory, I needed to build a basic model of when and why Hive's reserved memory grows. During my work, I mainly focused on HiveServer2. The first step of building the model was to get basic knowledge about Hive's code base and the query compilation process. The query life cycle mentioned in the previous chapter helped, but I had to find those steps in the code. Once I had these points I was able to start measuring and maybe find some memory wastage.
 
 \section{Finding the measuring points}
-Hive has around 2 million lines of code so locating the main steps of the query processing was challenging. 
+Hive has around 2 million lines of code, so locating the main steps of query processing was challenging. 
 
-As a starting, the user enters a query in the client. At this point, I run Hive locally, so the simplest way for submitting queries against Hive was using Beeline command line client. HS2 gets the query through its Thrift interface. After this, the query goes to the \textit{Driver} class, which is the main class for compiling and executing queries.
+As a starting, the user enters a query in the client. At this point, I was running Hive locally, so the simplest way to submit queries against Hive was by using Beeline command line client. HS2 receives the query from its Thrift interface. After this, the query goes to the \textit{Driver} class, which is the main class for compiling and executing queries.
 
-The Driver has two methods that are important for me: \textit{run} and \textit{runInternal}. The \textit{run} method gets called first, which basically just delegates to the \textit{runInternal} method. These two functions return with a \textit{CommandProcessorResponse}, once the compilation and execution are done. 
+The Driver has two methods that are important for my purposes: \textit{run} and \textit{runInternal}. The \textit{run} method gets called first, which basically just delegates to the \textit{runInternal} method. These two functions return a \textit{CommandProcessorResponse}, once the compilation and execution are done. 
 
-\noindent The runInternal does the two main steps:
+\noindent runInternal does the two main steps:
 \begin{itemize}
-	\item \textit{Driver.compile}: gets the command string and parses, analyses the query and generates the execution plan.
+	\item \textit{Driver.compile}: gets the command string and parses and analyses the query and generates the execution plan.
 	\item \textit{Driver.execute}: gets the execution plan and executes it on a specific engine (MapReduce, Spark or TEZ).
 \end{itemize}
 
 \subsection{Compile}
-The first step of the compilation is the parsing. It takes a string and returns an Abstract Syntax Tree (AST or the Parse Tree).
+The first step of compilation is parsing. The Parser takes a string and returns an Abstract Syntax Tree (AST or the Parse Tree).
 
 \begin{lstlisting}
 public int compile(String command, ...) {
@@ -27,8 +27,8 @@ public int compile(String command, ...) {
 ...
 }
 \end{lstlisting}
-\subsubsection{Semantic Analyzis}
-After the AST is generated, the compile process will continue with the semantic analyzer. The type of the analyzer will depend on the query type we are running. For SELECT and INSERT the \textit{SemanticAnalyzer} class is used. 
+\subsubsection{Semantic Analysis}
+After the AST is generated, the compile process will continue in the semantic analyzer. The type of the analyzer will depend on the query type we are running. For SELECT and INSERT the \textit{SemanticAnalyzer} class is used. 
 
 \begin{lstlisting}
 public int compile(String command, ...) {
@@ -40,7 +40,7 @@ public int compile(String command, ...) {
 }
 \end{lstlisting}
 
-The SemanticAnalyzer class is the main phase during compilation. It checks for semantic errors, fetches metadata from Metastore, generates and optimizes the query plan. The \textit{analyze} method of the \textit{BaseSemanticAnalyzer} is called from the Driver's \textit{compile} method, and it delegates the call to the corresponding analyzer. From now on, I will write about the \textit{SemanticAnalyzer} class and its phases (which is executed for SELECTS and INSERTS).
+The main phase of compilation happens in the SemanticAnalyzer class. This class checks for semantic errors, fetches metadata from Metastore, and generates and optimizes the query plan. The \textit{analyze} method of the \textit{BaseSemanticAnalyzer} is called from the Driver's \textit{compile} method, and it delegates the call to the corresponding analyzer. Here I we will focus on the \textit{SemanticAnalyzer} class and its phases (which is executed for SELECTS and INSERTS).
 
 \begin{lstlisting}
 void analyzeInternal(ASTNode ast, PlannerContext plannerCtx) {
@@ -67,11 +67,11 @@ void analyzeInternal(ASTNode ast, PlannerContext plannerCtx) {
 \end{lstlisting}
 
 \begin{enumerate}
-	\item Fetches metadata and fills the Parse Tree with it so it becomes a Resolved Parse Tree.
-	\item The Operation Tree gets created which will contain operators that process data read from the table. This tree is called by the Map and Reduce methods.
-	\item The semantic analyzer will deduce the schema of the result set from the row schema
+	\item Fetch metadata and populate the Parse Tree with it so making the Parse Tree a Resolved Parse Tree.
+	\item The Operator Tree is created which will contain operators that process data read from the table. This tree is called by the Map and Reduce methods.
+	\item The semantic analyzer will deduce the schema of the result set from the row schema.
 	\item A logical optimization is done on the Operator Tree. There are two types of optimization: one that transforms the Operator Tree (like removing unnecessary operations) and one that does not (predicate pushdown, vectorization \etc).
-	\item Physical optimization and translation to the target execution engine take place. The output of this stage is the query plan. It can optimize the tree according to the engine used. For example in MR, common join can be translated to map-side join, if one of the tables is small enough to fit into the memory of the map nodes.
+	\item Physical optimization and translation to the target execution engine take place. The output of this stage is the query plan. It can optimize the tree according to the engine used. For example, in MR, a common join can be translated to map-side join, if one of the tables is small enough to fit into the memory of the map nodes.
 \end{enumerate}
 
 \begin{lstlisting}
@@ -86,7 +86,7 @@ After the semantic analysis is completed, the Driver will validate the plan. Whe
 
 \clearpage
 \section{Measure the memory of HiveServer2}
-If I want to measure the memory usage of Hive, I need a something to create and analyze heap dumps and generate memory statistics. There are several tools to choose from. In this section, I will present the tools I considered and the method I used to get a better understanding of HS2 memory patterns.
+If I want to measure the memory usage of Hive, I need a tool to create and analyze heap dumps and generate memory statistics. There are several tools to choose from. In this section, I will present the tools I considered using and the method I used to get a better understanding of HS2 memory patterns.
 
 \subsection{Tools for generating heap dumps and statistics}
 For creating heap dumps and statistics of the memory, I decided to use a command line tool. In contrast of a UI tool, it has the benefits to generate heap dumps and statistics automatically. 
