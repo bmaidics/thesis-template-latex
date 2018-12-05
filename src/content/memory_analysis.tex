@@ -84,38 +84,37 @@ public int compile(String command, ...) {
 
 After the semantic analysis is completed, the Driver will validate the plan. When it completes, the compilation ends and Hive will continue with the execution.
 
-\clearpage
-\section{Measure the memory of HiveServer2}
-If I want to measure the memory usage of Hive, I need a tool to create and analyze heap dumps and generate memory statistics. There are several tools to choose from. In this section, I will present the ones I considered using and the method I used to get a better understanding of HS2 memory patterns.
+\section{Measuring the memory of HiveServer2}
+In order to measure the memory usage of Hive, I needed a tool to create and analyze heap dumps and generate memory statistics. There were several tools to choose from. In this section, I will present the ones I considered using and the method I used to get a better understanding of HS2 memory patterns.
 
 \subsection{Tools for generating heap dumps and statistics}
-For creating heap dumps and statistics of the memory, I decided to use a command line tool. In contrast to a UI tool, it is easier to integrate and automate, so I am able to generate heap dumps and statistics automatically. 
+For creating heap dumps and statistics of the memory, I decided to use a command line tool. In contrast to a UI tool, it is easier to integrate and automate, so I was able to generate heap dumps and statistics automatically. 
 
 \subsubsection{jmap}
 \textit{jmap} \cite{jmap-jcmd} can be used to obtain heap dumps and histograms from a running Java process.
 
-To gather information about a running Java program we need its process ID (PID). Using this we can easily create the heap dump with the \textit{-dump} option. If we do not want to analyze large heap dumps, just to get the objects that reserve the most memory, we can use the \textit{-histo} option. It will print a histogram of the heap, containing each Java class, the number of objects and memory sizes per class.
+To gather information about a running Java program, we need its process ID (PID). Using this, we can easily create a heap dump with the \textit{-dump} option. If we do not want to analyze large heap dumps, but instead just get the objects that reserve the most memory, we can use the \textit{-histo} option. It will print a histogram of the heap that contains each Java class and the number of objects and memory sizes per class.
 
 \subsubsection{jcmd}
-\textit{jmap} would have been a perfect choice for measuring memory. However, it is recommended to use the latest utility, which is called \textit{jcmd} \cite{jmap-jcmd}. It has enhanced diagnostics capability and its perfomance overhead is reduced. 
+\textit{jmap} would have been a perfect choice for measuring memory. However, it is recommended to use a newer utility, which is called \textit{jcmd} \cite{jmap-jcmd}. It has enhanced diagnostics capability and reduced performance overhead. 
 
-The usage of jcmd is similar to jmap. For creating heap dumps we can use \textit{jcmd <PID> GC.heap\_dump}. If we want to obtain class histogram we can do that with the \textit{jcmd <PID> GC.class\_histogram} command. With the \textit{jcmd <PID> GC.heap\_info} command we can gather basic information of the heap: \eg young and old memory of the process.
+Using jcmd is similar to using jmap. For creating heap dumps, we can use \textit{jcmd <PID> GC.heap\_dump}. If we want to obtain a class histogram we can do that with the \textit{jcmd <PID> GC.class\_histogram} command. With the \textit{jcmd <PID> GC.heap\_info} command we can gather basic information of the heap: \eg young and old memory of the process.
 
-I decided to use jcmd in my future work to gather memory information automatically and generate heap dumps at the measuring points, identified in the previous section.
+I decided to use jcmd in my following work to gather memory information automatically and generate heap dumps at the measuring points, identified in the previous section.
 
 \subsection{Tools for analysing heap dumps}
-Creating heap dumps with a CLI tool is easier, however analysing those requires a tool with user interface. 
+Creating heap dumps with a CLI tool is easier; however, analysing them requires a tool with a user interface. 
 
 \subsubsection{YourKit}
-\textit{YourKit} provides great analysing capabilities for heap dumps. We can use it for profiling local or remote Java applications. It has controllable overhead. Although, it is a great tool for profiling Java applications, it is a commercial software and only has 15 days of free licence.
+\textit{YourKit} provides great analysis capabilities for heap dumps. It can be used to profile local or remote Java applications. It has controllable overhead. Although it is a great tool for profiling Java applications, it is commercial software and only offers a free trial of 15 days.
 
 \subsubsection{VisualVM}
-\textit{VisualVM} provides a great visual interface for profiling Java applications and browsing heap dumps. It offers multiple views for analysing them. We can get the summary of the dump which contains the total bytes, classes and objects. 
+\textit{VisualVM} provides a great visual interface for profiling Java applications and browsing heap dumps. It offers multiple views for analysing them. We can get a summary of the dump which contains the total number of bytes and a list of classes and objects.
 
-With the "classes view" we can get information about the reserved memory and number of instances for each class. We can calculate the retained memory, which is the memory that would be freed if the objects would be garbage collected.
+The "classes view" provides information about the reserved memory and number of instances for each class. We can calculate the retained memory, which is the memory that would be freed if the objects would be garbage collected.
 
 \subsubsection{JXRay}
-JXRay \cite{jxray} is a memory analysis tool for Java applications. It creates an HTML report of a given heap dump. It can automatically detect common problems, like data duplication or non-optimal use of data structures. 
+JXRay \cite{jxray} is a memory analysis tool for Java applications. It creates an HTML report of a given heap dump. It can automatically detect common problems like data duplication or non-optimal use of data structures. 
 
 JXRay can give us a compact report, even if the heap dump analyzed is 10's of Gigabytes. It can calculate how much memory is taken by a collection's internal representation and their workload since JXRay knows about the internal representation of common java collections (HashMap, ArrayList \etc).
 
@@ -126,19 +125,18 @@ JXRay can give us a compact report, even if the heap dump analyzed is 10's of Gi
 \end{figure}
 
 \subsubsection{The selected tool}
-I decided to use VisualVM for visual memory analysis since it has great capabilities for summarizing the most important information about a heap dump and with its help, I am able to walk through the memory tree easily.
+I decided to use VisualVM for visual memory analysis since it has great capabilities for summarizing the most important information about a heap dump. With its help, I was able to walk through the memory tree easily.
 
 During my work, I also used JXRay, since it can automatically detect the most common memory problems and give me an overview of the possible issues a Java application has.
 
-\clearpage
 \subsection{Creating the code to measure memory}
-With the available tools, I am able to generate heap dumps really easily. However, to get a model how Hive uses the memory, I should gather statistics and heap dumps at certain points of the query execution. Clearly, it is not possible by hand. Thus, I needed to create a class in Hive's codebase and integrate the sampling in the identified points found in the previous section.
+With the available tools, I was able to generate heap dumps quite easily. However, to get a model how Hive uses the memory, I needed to gather statistics and heap dumps at certain points of the query execution. Clearly, this was not possible to do by hand. Thus, I needed to create a class in Hive's codebase and integrate the sampling in the identified points found in the previous section.
 
-In order to use jcmd from Java, I needed a way to execute a terminal command from code. With the \textit{ProcessBuilder} java class I am able to create operating system processes with the given attributes. The \textit{Runtime.exec()} method would do the same, but using this command is discouraged. 
+In order to use jcmd from Java, I needed a way to execute a terminal command from code. With the \textit{ProcessBuilder} Java class, I was able to create operating system processes with the given attributes. The \textit{Runtime.exec()} method would have done the same, but using this command is discouraged. 
 
-Now that I can run a command line tool from Java, I will need the process ID of HiveServer2. Since Hive uses Java 8, I cannot use the new Process API that Java 9 provides. With the help of the \textit{ManagementFactory} class, we can get the managed bean of the runtime system of the JVM. It will return a class implementing the \textit{RuntimeMXBean} interface. The name of the running JVM contains the ID of the process. With the \textit{RuntimeMXBean.getName()} method, I was able to get the PID of HiveServer2. The method will return a string in a format of \textit{pid@hostname}. Using the split method we can get our application's process ID.
+Now that I was able to run a command line tool from Java, I needed the process ID of HiveServer2. Since Hive uses Java 8, I could not use the new Process API that Java 9 provides. With the help of the \textit{ManagementFactory} class, I was able to get the managed bean of the runtime system of the JVM. It returns a class implementing the \textit{RuntimeMXBean} interface. The name of the running JVM contains the ID of the process. With the \textit{RuntimeMXBean.getName()} method, I was able to get the PID of HiveServer2. This method returns a string in a format of \textit{pid@hostname}. Using the split method, we can get our application's process ID.
 
-To avoid code duplication I created a method for getting the ProcessBuilder which contains the given command and the PID of HiveServer2 is already set.
+To avoid code duplication, I created a method for getting a ProcessBuilder that contains the given command and the PID of HiveServer2.
 
 \begin{lstlisting}
 private ProcessBuilder getProcessBuilder(String subCommand){
@@ -150,7 +148,7 @@ private ProcessBuilder getProcessBuilder(String subCommand){
 }
 \end{lstlisting}
 
-Using the \textit{getProcessBuilder} function, it is really simple to run a terminal command. For example, getting information about the state of the heap or creating a heap dump will look like this:
+Using the \textit{getProcessBuilder} function, it is simple to run a terminal command. For example, getting information about the state of the heap or creating a heap dump will look like this:
 
 \begin{lstlisting}
 ...
@@ -160,7 +158,7 @@ Using the \textit{getProcessBuilder} function, it is really simple to run a term
 \end{lstlisting}
 
 \subsubsection{Parsing result}
-I am able to create detailed statistics about the current memory state at certain phases of the query. As a first approach, I decided to just use \textit{GC.heap\_info} to see how memory usage looks like at different stages, not caring how much memory is reserved by each class. However, if we look at the result of the \textit{jcmd <PID> GC.heap\_info}, it will look quite messy, and hides the most important details, especially if we have 15 results for each query. An example of how it looks:
+I was able to create detailed statistics about the current memory state at certain phases of the query. As a first approach, I decided to just use \textit{GC.heap\_info} to see how memory usage looks like at different stages, disregarding how much memory is reserved by each class. However, the result of \textit{jcmd <PID> GC.heap\_info} will look quite messy and hides the most important details, especially if we have 15 results for each query. An example of how it looks:
 
 \begin{lstlisting}
 21566:
@@ -178,9 +176,9 @@ Metaspace used 48314K, capacity 48612K, committed 49280K, reserved 1093632K
 class space used 5359K, capacity 5440K, committed 5504K, reserved 1048576K
 \end{lstlisting}
 
-I only need certain values: allocated young and old memory, and a total memory which is the sum of the young and old values. I created a function called getResult which will read the result from a given process and return in string format. The returned string will look like above, so parsing is needed if I want to gather the important details.
+I only needed certain values: allocated young and old memory and total memory, which is the sum of the young and old values. I created a function called getResult which will read the result from a given process and return it in string format. The returned string will look like the above output, I needed to parse it if I wanted to gather the [most] important details.
 
-To do this, I made a function (printResultToCSV) which will parse the given string, and print the results to a csv file in a table like format, where the first line is the query, and the columns are the different stages.
+To do this, I made a function (printResultToCSV) which parses the given string and print the results to a CSV file in a table-like format, where the first line is the query and the columns are the different stages.
 
 \begin{table}[H]
 	\begin{tabular}{|l|l|l|l|l|l|l|l|}
@@ -191,14 +189,14 @@ To do this, I made a function (printResultToCSV) which will parse the given stri
 		Sum                                                                                   & 22848                                                    & 23178                                                  & 27910                                                            & 64647                                                      & 110997                                                  & 108654                                                  & 113393   \\ \hline
 	\end{tabular}
 \centering
-\caption{Sample output of the parsing}
+\caption{Sample output after parsing}
 \end{table}
 \subsection{How HiveServer2 uses memory}
-I have the code to measure the memory of Hive and get a general picture of the usage at certain phases. With this, I am able to get a better understanding when and why memory goes high. I would like to get an answer to these questions: How does the number of joins increase the memory? Which type of query generates a lot of memory usage: union, group by? If we increase the number of partitions, how it affects the heap size? In this section, these questions will be answered.
+I now had the code to measure the memory of Hive and get a general picture of its usage at certain phases. With this, I was able to get a better understanding of when and why memory goes high. I wanted to answer these questions: How does the number of joins increase memory? Which type of query generates a lot of memory usage: union, group by? How does increasing the number of partitions affect the heap size? In this section, these questions will be answered.
 
-The first step is to create a managed table where I will run my queries in the future. Hive faces memory problems when we have a highly partitioned table. I decided, that for the first run, 20 000 partitions will be enough. 
+The first step is to create a managed table for running my queries. Hive faces memory problems with highly partitioned tables. I decided that, for the first run, 20 000 partitions would be enough. 
 
-The second step was to create queries which will be submitted to Hive. The first question was how the number of joins affects memory? To answer it, I have created queries with an increasing number of joins included. I used self-joins and only increased the number to three. The pattern was clear for only four measures: a simple select query without join operators, and queries with one, two and three. From the output of my parsed CSV file, I generated the following chart that shows the memory increase.
+The second step was to create queries to submit to Hive. The first question was, how does the number of joins affect memory? To answer it, I created queries with increasing numbers of joins. I used self-joins and only increased the number to three. The pattern was clear after only four runs: a simple select query without join operators, and queries with one, two and three joins. From the output of my parsed CSV file, I generated the following chart that shows the memory increase:
 
 \begin{figure}[H]
 	\includegraphics[width=150mm, keepaspectratio]{figures/hs2_joins_memory.png}
@@ -214,9 +212,9 @@ The second step was to create queries which will be submitted to Hive. The first
 	\item select * from tablename t1 join tablename t2 on t1.id=t2.id join tablename t3 on t2.id=t3.id join tablename t4 on t3.id=t4.id (\textcolor{green}{\rule{2 cm}{2pt} })
 \end{itemize}
 
-We can see that the memory change caused by the number of join operators is negligible, only around 20 Megabytes per join. The results were as expected: the memory increased significantly when HiveServer2 connected to the MetaStore and asked for metadata. During physical optimization, Hive loaded metadata to the memory including partition metadata. In a highly partitioned table, this size is notable. Although real queries submitted to Hive by users are much more complicated and contain multiple tables, the model will be quite similar: heap memory will rise when metadata is loaded.
+We can see that the memory change caused by the number of join operators is negligible, only around 20 Megabytes per join. The results were as expected: the memory increased significantly when HiveServer2 connected to the MetaStore and asked for metadata. During physical optimization, Hive loads metadata, including partition metadata, into memory. In a highly partitioned table, this size is considerable. Although real queries submitted to Hive by users are much more complicated and contain multiple tables, the model will be quite similar: heap memory will rise when metadata is loaded.
 
-I also wanted to see the memory effects of \textit{group by} and  \textit{union all} operations. I ran 5 more queries including these but did not find anything notable. The pattern remained the same: see the chart below. 
+I also wanted to see the memory effects of \textit{group by} and  \textit{union all} operations. I ran 5 more queries including these, but did not find anything notable. The pattern remained the same: see the chart below. 
 
 \begin{figure}[H]
 	\includegraphics[width=150mm, keepaspectratio]{figures/hs2_memory.png}
@@ -224,12 +222,12 @@ I also wanted to see the memory effects of \textit{group by} and  \textit{union 
 	\caption{Heap size when running various type of queries}
 \end{figure}
 
-I came to the conclusion that for a single connection to HiveServer2, the most important factor that increases heap size is the number of partitions in tables, so I decided to continue my investigation in that area. 
+I came to the conclusion that, for a single connection to HiveServer2, the most important factor that increases heap size is the number of partitions in tables, so I decided to continue my investigation in that area. 
 
 \subsection{Memory consumption of partitions}
-A well-known issue in Hive is, if we have a highly partitioned table, the memory goes really high in HiveServer2. As a first step, I wanted to recreate the issue. I created tables with an increasing number of partitions: 200, 2000, 5000, 20000 and 100000 partitions. For each table, I executed the same query which contains a simple select with a self-join. During this, I measured the memory and created a heap dump after the semantic analyzer phase of the compilation. At this stage, the partitions are already loaded so I can analyze how much these objects exactly reserve. To get this information, I analyzed the heap dumps with VisualVM and filtered for the Partition objects. The pattern we can observe was as expected, but the size of the heap reserved by these objects were smaller than I previously anticipated.
+A well-known issue in Hive is that for highly partitioned tables, the memory rises in HiveServer2. As a first step, I wanted to recreate the issue. I created tables with an increasing number of partitions: 200, 2000, 5000, 20000 and 100000 partitions. For each table, I executed the same query which contains a simple select with a self-join. During this, I measured the memory and created a heap dump after the semantic analysis phase of the compilation. At this stage, the partitions were already loaded so I could analyze how much memory these objects exactly reserve. To get this information, I analyzed the heap dumps with VisualVM and filtered for the Partition objects. The pattern we can observe was as expected, but the size of the heap reserved by these objects were smaller than I previously anticipated.
 
-\noindent From the heap dumps I have found that mainly three kind of objects reserve the memory due to partitions, so I will focus on these objects: 
+\noindent From the heap dumps I found that mainly three kind of objects reserve the memory due to partitions, so I will focus on these objects: 
 \begin{enumerate}
 	\item hive.ql.metadata.Partitions
 	\item hive.metastore.api.Partition
@@ -256,12 +254,12 @@ A well-known issue in Hive is, if we have a highly partitioned table, the memory
 	\caption{Reserved memory by partitions}
 \end{figure}
 
-As we see, for 100.000 partitions the reserved memory is around 385 Megabytes. Before taking the samples, I expected higher memory consumption. However, with a little investigation I found that the memory waste around partitions was already somewhat decreased \cite{hive-partitions}. \textit{PartitionDesc} objects has a \textit{java.util.Properties} field. These \textit{Properties} fields in the \textit{PartitionDesc} most often are the same. Interning these saves a big amount of memory. In a later section, I will write more about the interning solution because it gave me an idea to fix another memory related issue.
+As we can see, for 100 000 partitions the reserved memory is around 385 Megabytes. Before taking these samples, I expected higher memory consumption. However, with a little investigation, I found that the memory waste around partitions was already somewhat decreased \cite{hive-partitions}. \textit{PartitionDesc} objects have a \textit{java.util.Properties} field. These \textit{Properties} fields in \textit{PartitionDesc} are most often the same. Interning these saves a large amount of memory. In a later section, I will write more about the interning solution, because it gave me the idea to fix another memory related issue.
 
-However the memory reserved by partitions is still high enough, so I decided to take a look at the generated heap dumps and try to find wastes or problems that affects memory.
+However, the memory reserved by partitions was high enough that I decided to take a look at the generated heap dumps and try to find wastage or problems that affect memory.
 
 \subsection{Where does the memory go?}
-I analyzed the heap dump generated after the semantic analyzer phase when self-joining a table with 100000 partitions. It showed an interesting fact: 47.1\% (~853 Megabytes) of retained memory is reserved by Strings. Retained means, that if the Garbage Collector frees them, we win that amount of memory. 
+I analyzed the heap dump generated after the semantic analysis phase when self-joining a table with 100000 partitions. It showed an interesting result: 47.1\% (~853 Megabytes) of retained memory is reserved by Strings. “Retained” means that if the Garbage Collector frees them, we save that amount of memory. 
 
 \begin{figure}[H]
 	\includegraphics[width=150mm, keepaspectratio]{figures/string_memory.png}
@@ -269,7 +267,7 @@ I analyzed the heap dump generated after the semantic analyzer phase when self-j
 	\caption{Memory reserved by Strings}
 \end{figure}
 
-We also see in the above image that \textit{hadoop.fs.Path} objects reserve 792 Megabytes. It seems too much considering that we only speak about the location of a file in the filesystem. As a next step, I looked inside the Path objects to see if this is a waste or not.
+We see in the above image that \textit{hadoop.fs.Path} objects reserve 792 Megabytes. It seems excessive, considering we are only talking about the location of a file in the filesystem. As a next step, I looked inside the Path objects to see if this is wastage or not.
 
 \subsubsection{Memory waste in HDFS Path}
 \begin{figure}[H]
@@ -278,53 +276,53 @@ We also see in the above image that \textit{hadoop.fs.Path} objects reserve 792 
 	\caption{Inside of a Path}
 \end{figure}
 
-In Path objects, we store the location in a \textit{java.net.URI} object. Its internal representation seems really wasteful. As we see, URI stores a path in 3 different Strings. The Strings are almost the same: for example the string field inside the URI contains the scheme, the path field does not, and this is the only difference \etc. We can ask ourselves: is it really necessary?
+In Path objects, we store the location in a \textit{java.net.URI} object. Its internal representation seems wasteful. As we can see, a URI object stores a path in 3 different Strings. The Strings are almost the same: for example, the only difference between the string field and the path field is that the string field inside the URI contains the scheme and the path field does not, \etc. We must ask ourselves: is it really necessary?
 
-To determine this we need to inspect the Path.java source code. URIs are always created the same way: we pass four String parameters to the constructor of the URI class: scheme, authority, path, and fragment. In the code below the null parameter represents the query part of a URI. Passing null means that we do not need that value.
+To determine this, we need to inspect the Path.java source code. URIs are always created the same way: we pass four String parameters to the constructor of the URI class: scheme, authority, path, and fragment. In the code below, the null parameter represents the query part of a URI. Passing null means that we do not need that value.
 
 \begin{lstlisting}
-	newUri = new URI(scheme, authority , path, null, fragment);
+newUri = new URI(scheme, authority, path, null, fragment);
 \end{lstlisting}
 
-To summarize, the internal representation of the URIs clearly seems like a waste of memory. So I started to think of an alternative solution to replace these URI objects and save around 66\% of memory for each Path. 
+To summarize, the internal representation of the URIs clearly seems like a waste of memory. So I started to think about an alternative solution to replace these URI objects and save around 66\% of memory for each Path. 
 
 \chapter{Fixing memory waste of URIs - HDFS-13752}
-The duplication comes from the \textit{java.net.URI} objects so the first thing that came to my mind was to replace this with a more memory efficient implementation in the Path.java class. As a first approach, I created a Jira ticket in the corresponding Apache site to report the issue \cite{hdfs-path}. 
+The duplication comes from \textit{java.net.URI} objects, so the first thing that came to mind was to replace them with a more memory-efficient implementation in the Path.java class. As a first approach, I created a Jira ticket in the corresponding Apache site to report the issue \cite{hdfs-path}. 
 
-The community agreed that the way URIs store these paths is a waste, and could be stored more efficiently. However, many other classes use these URIs. The Path class has a public \textit{toURI} function which returns the URI representation of the path. Obviously, this cannot be removed because others are depending on it. I found three possible solutions to get rid of this memory overhead.
+The community agreed that the way URIs store these paths is wasteful and they could be stored more efficiently. However, many other classes use these URIs. The Path class has a public \textit{toURI} function which returns the URI representation of the path. Obviously, this cannot be removed because others are depending on it. I found three possible solutions to get rid of this memory overhead:
 
 \begin{itemize}
-	\item Keep the URI field with only having a WeakReference to it, and store the 4 parts of the Path in seperate fields
-	\item Keep the URI field with only having a SoftReference to it, and store the 4 parts of the Path in seperate fields
-	\item Remove the URI field completely and store those parts of the URI that we really use in separate Strings
+	\item Keep the URI field with only having a WeakReference to it, and store the 4 parts of the Path in separate fields
+	\item Keep the URI field with only having a SoftReference to it, and store the 4 parts of the Path in separate fields
+	\item Remove the URI field completely and store only the parts of the URI that we actually use in separate Strings
 \end{itemize}
 \section{Solution ideas}
 \subsection{Solution 1: WeakReference}
-A WeakReferenced object works in a way, that if the object is only weakly reachable (its only references are WeakReferences), it will not prevent the object to be garbage collected. We would have a WeakReference to the URI and when the GC runs, it can collect the URIs if we do not have a strong reference to it. 
+A WeakReferenced object works in such a way that if the object is only weakly reachable (its only references are WeakReferences), it will not prevent the object from being garbage collected. We would have a WeakReference to the URI and, when the GC runs, it collects the URIs if there is no strong reference to it. 
 
-When someone wants to get the URI representation of the path and calls the \textit{toURI} function, we need to check if the URI exists through the WeakReference or not. If it exists, we can just get it because we have a WeakReference to it. If it does not, we need to recreate the URI from its parts. 
+When someone wants to access the URI representation of the path and calls the \textit{toURI} function, we check whether or not the URI exists through its WeakReference. If it exists, it is accessible because we have a WeakReference to it. If it does not, we need to recreate the URI from its parts. 
 
 \subsection{Solution 2: SoftReference}
-Using SoftReference would be a more conservative solution. If the Garbage Collector finds an object that is only softly reachable, it does not dump the object instantly. An object with a SoftReference will only be collected at memory demand. This way before an Out Of Memory error is thrown, the GC can free all URIs. If the GC collected the URI we would do the same as mentioned before: recreate the URI from the stored parts when needed. 
+Using SoftReference would be a more conservative solution. If the Garbage Collector finds an object that is only softly reachable, it does not dump the object instantly. An object with a SoftReference will only be collected when extra memory is needed. This way, the GC can free all URIs before an Out Of Memory error is thrown. If the GC collected the URI, we would do the same as previously mentioned: recreate the URI from the stored parts when needed. 
 
-\subsection{Solution 3: On demand URI creating}
-A possible solution is to remove the URI completely and only keep 4 parts of the Path which are used: scheme, authority, path and fragment. This way we can immediately win around 66\% of memory. The only drawback is that we always have to recreate the URI every time the toURI method is called and this might be expensive CPU-wise.
+\subsection{Solution 3: On-demand URI Creation}
+A possible solution is to remove the URI completely and only keep the 4 parts of the Path which are used: scheme, authority, path and fragment. This way, we can immediately win around 66\% of memory. The only drawback is that we always have to recreate the URI every time the toURI method is called, and this might be expensive CPU-wise.
 
 \begin{figure}[H]
 	\includegraphics[width=150mm, keepaspectratio]{figures/path_before_after.png}
 	\centering
-	\caption{Memory save of Paths}
+	\caption{Memory savings of Paths}
 \end{figure}
 
 \subsection{Conclusion}
-For the second thought, I realized that using WeakReference would not be the best decision. It would almost be the same as creating the URI on demand, since whenever the GC runs, it will collect the URIs immediately and when toURI is called we would have to recreate it anyway. The only way to decide which solution might be the best is to measure the performance of both approach. 
+Upon second thought, I realized that using WeakReferences would not be the best decision. It would almost be the same as creating the URI on-demand, since whenever the GC runs, it will collect the URIs immediately, and we would have to recreate it every time toURI is called. But the only way to be sure which solution might be the best was to measure the performance of both approaches. 
 
-I also analyzed the code base of Hadoop to see how \textit{Path.toUri} method is usually used. Most often we just want to ask for certain parts of the Path object and not really using the URI itself. For example: \textit{pathObject.toUri().getPath()} to get the path, or \textit{pathObject.toUri().getScheme()} to get the scheme. Considering only this, solution 3 would be the most effective, since we are able to get the path/scheme/authority or fragment directly from the Path object and we do not need to first transform it to an URI, and than ask for the value we need. 
+I also analyzed the code base of Hadoop to see how \textit{Path.toUri} method is usually used. Most often we just want to ask for certain parts of the Path object and not really use the URI itself. For example: \textit{pathObject.toUri().getPath()} to get the path, or \textit{pathObject.toUri().getScheme()} to get the scheme. Considering only this, solution 3 would be most effective, since we are able to get the path/scheme/authority or fragment directly from the Path object and we do not need to first transform it to an URI, and thean ask for the value we need. 
 
-\section{A simple performance test for toURI}
-I created a really simple test, to decide which solution would solve the issue without a significant CPU overhead. 
+\section{A Simple Performance Test for toURI}
+I created a simple test to decide which solution would solve the issue without a significant CPU overhead. 
 
-I tested the CPU usage of the toUri() method, analyzing the different solutions: I created 1.000.000 Path objects (of course this is not a real use case, but it can be a good estimation as the first approach). See the results in the table below (3. row). I’ve also measured the memory effects of the changes. 
+I tested the CPU usage of the toUri() method, analyzing the different solutions: I created 1.000.000 Path objects (of course this is not a real use case, but it can be a good estimation as the first approach). See the results in the table below (3. row). I also measured the memory effects of the changes. 
 
 \noindent The code I used for testing:
 \begin{lstlisting}
@@ -346,11 +344,11 @@ long estimatedTime = System.nanoTime() - startTime;
 \caption{Results of the test}
 \end{table}
 
-The results showed that using SoftReference has a bit of memory overhead because apart from the URI itself, we need to store the SoftReferences which require heap space as well. Thus, it would only be a save if the heap is almost full, other than that we it would reserve even more memory. The time of toURI calls might be deceptive. Calling \textit{toURI} method only once is slower than with the original solution and we do not use the method as in the example above. 
+The results showed that using SoftReference has a bit of memory overhead because, apart from the URI itself, we need to store the SoftReferences, which requires heap space as well. Thus, wewould only save memory if the heap is almost full, otherwise it would reserve even more memory. The time of toURI calls might be deceptive. Calling the \textit{toURI} method only once is slower than with the original solution and we do not use the method as in the example above. 
 
-Looking into the results of the third possible solution, the benefits are clear memory-wise. However, the time of the toURI calls do not look so promising. The CPU time is almost 10x bigger than with the original approach. But if we take into account other factors, not just the plain CPU time, the overhead might not be that big. If the memory of the paths are reduced, the GC can work much faster, so smaller GC pauses will occur.
+Looking into the results of the third possible solution, the benefits are clear from the perspective of memory savings. However, the time taken by toURI calls does not look so promising. The CPU time is almost 10x larger than with the original approach. But, if we take into account other factors, not just CPU time, the overhead might not be that big. If the memory of the paths are reduced, the GC can work much faster, so smaller GC pauses will occur.
 
-An additional factor that should be considered is that if we remove the \textit{toUri} call whenever we want to get the values of path, scheme, authority or fragment, we can improve the performance of the original solution, since we can get those directly. Instead of \textit{Path.toUri().getPath() } we can just say \textit{Path.getPath()}.
+An additional factor that should be considered is that, if we remove the \textit{toUri} call whenever we want to get the values of path, scheme, authority or fragment, we can improve the performance of the original solution, since we can access those directly. Instead of \textit{Path.toUri().getPath() } we can just say \textit{Path.getPath()}.
 
 To test this theory, I created a simple test. The times of 1.000.000 toUri().getPath() calls:
 \begin{itemize}
@@ -359,9 +357,9 @@ To test this theory, I created a simple test. The times of 1.000.000 toUri().get
 	\item Solution 3 with only Path.getPath(): 0.004373138 s
 \end{itemize}
 
-With the results of my test, I decided to choose solution 3, which may be the simplest fix: remove the URI field completely and if someone needs it, create on demand from the path, scheme, authority and fragment parts.
+With the results of my test, I decided to choose solution 3, which may be the simplest fix: remove the URI field completely and, if someone needs it, create it on-demand from the path, scheme, authority and fragment parts.
 
-\section{Performance test on a cluster}
+\section{Performance Test on a Cluster}
 As a next step, I configured a cluster to see if my change would affect CPU significantly. The cluster I created had 4 nodes and only HDFS, YARN and HIVE were installed. I generated the below HDFS directory structure to test the performance of my fix. The "perftest" directory contains 100 folders, each contains 1000 other folders with one txt file. The code I used for testing can be found in the Jira ticket I reported \cite{hdfs-path} (HDFS-13752.003.patch).
 
 \begin{figure}[H]
@@ -370,7 +368,7 @@ As a next step, I configured a cluster to see if my change would affect CPU sign
 	\caption{Directory structure of the test}
 \end{figure}
 
-For the tests, I used FileSystem shell to interact with the HDFS directly. I choosed one shorter and one longer running operation for measuring the CPU time. The values in the tables are in millisecond.
+For the tests, I used FileSystem shell to interact with the HDFS directly. I chose one shorter and one longer running operation for measuring the CPU time. The values in the tables are in millisecond.
 
 \subsection{Listing files recursively}
 The command used:  \textit{hdfs dfs -ls -R /user/perftest}
@@ -399,16 +397,16 @@ The command used:  \textit{hdfs dfs -setrep -w 3 /user/perftest}
 \caption{CPU time of a replication factor changing}
 \end{table}
 
-\subsection{Analyzing the results}
-Seeing the results I think there is no big performance difference. The new solution is even a little bit faster. A possible explanation for this is that I removed several \textit{toUri()} calls inside the Path class, because we store the Path, Scheme, Authority and Fragment in the Path object. These can also be done outside of the Path class. Another explanation can the network improvement mentioned before or even the decrease of the GC pauses. Or it may only be just the inaccuracy of the measurement.
+\subsection{Analyzing the Results}
+Looking at the results, I think there is no significant performance difference. The new solution is even a little bit faster. A possible explanation for this is that I removed several \textit{toUri()} calls inside the Path class, because we store the Path, Scheme, Authority and Fragment in the Path object. These can also be done outside of the Path class. Another explanation could be the decrease in GC pauses. Or it may only be just the inaccuracy of the measurement.
 
-\section{Effects of the change in Path}
-After publishing the results to the Apache HDFS Jira, I tried to investigate if the change would be really beneficial. These Path objects can be found in every component that uses Hadoop, like Hive, Impala, HBase \etc and used widely everywhere in the code. As a consequence of this, a little CPU overhead can even cause a big performance loss so the patch needs to be tested throughly. 
+\section{Effects of the Change in Path}
+After publishing the results to the Apache HDFS Jira, I tried to investigate whether the change would be really beneficial. These Path objects can be found in every component that uses Hadoop, like Hive, Impala, HBase \etc and used widely everywhere in the code. As a consequence of this, even a little CPU overhead can cause a big performance loss, so my patch needed to be tested thoroughly. 
 
-If this little change has some possibility to decrease the performance significantly, would it really benefit the components? I did an investigation to see if this issue is real and what would it fixed. Based on the results, my answer is: yes. The following issues was partly or entirely caused by the size of memory these Path objects reserve, so reducing the size with 66\% may solve or help these problems.
+If this little change had some possibility to decrease the performance significantly, would it really benefit the components? I conducted an investigation to see if this issue is real and what it would fix. Based on the results, my answer is: yes. The following issues were partly or entirely caused by the size of memory these Path objects reserve, so reducing the size with 66\% may solve or help these problems:
 
 \subsection{Hive MetaStore OOM}
-During my investigation I found a HMS memory issue in production use of Hive. The MetaStore server crashed due to an Out Of Memory error. The following heap dump was created before the OOM. Here 9.743 Gigabytes of memory was used by \textit{fs.Path} objects.
+During my investigation I found a HMS memory issue in production use of Hive. The MetaStore server crashed due to an Out Of Memory error. The following heap dump was created before the OOM. Here, 9.743 Gigabytes of memory were used by \textit{fs.Path} objects.
 
 \begin{figure}[H]
 	\includegraphics[width=150mm, keepaspectratio]{figures/hms_heapdump.png}
@@ -416,17 +414,17 @@ During my investigation I found a HMS memory issue in production use of Hive. Th
 	\caption{HMS heap dump before OOM}
 \end{figure}
 
-\subsection{Hive on Spark memory issue}
-Stress testing of HoS (Hive with Spark execution engine) has revealed that we have memory issues when running with a high value of \textit{spark.executor.cores}. The overhead is mainly introduced by loading multiple copies of HiveConf (Hive configuration object) and there is a significant overhead when loading lots of Path objects too. In the next chapter I will focus on the multiple HiveConf issue as well.
+\subsection{Hive on Spark Memory Issue}
+Stress testing of HoS (Hive with Spark execution engine) has revealed that we have memory issues when running with a high value of \textit{spark.executor.cores}. The overhead is mainly introduced by loading multiple copies of HiveConf (Hive configuration object) and there is a significant overhead when loading lots of Path objects too. In the next chapter I will focus on the HiveConf issue as well.
 
 \subsection{"Small files problem" in HiveServer2}
-HS2 has a so called "small files problem". Something like \textit{create external table} with lots of small files in the  HDFS directory of the table causes HiveServer2 to load the HDFS paths of the files into memory. If we have millions of small files (which is not that rare), these paths can use Gigabytes of heap memory. Hive does a \textit{listFiles} that returns all the Paths, to determine file permissions \etc. So create table hangs and other queries wait a LOT.
+HS2 has a so called "small files problem". A query like \textit{create external table} with lots of small files in the  HDFS directory of the table causes HiveServer2 to load the HDFS paths of the files into memory. If we have millions of small files (which is not that rare), these paths can use Gigabytes of heap memory. Hive calls a \textit{listFiles} method that returns all the Paths to determine file permissions \etc. So create table hangs and other queries remain stuck in the queue.
 
-\subsection{Apache Impala's solution for the problem}
-Apache Impala also faced problems caused by the size of memory used by the Paths. Impala is a query engine on top of Hadoop, similar to Hive. They already solved this problem on their side. Impala has a \textit{HdfsPartitionLocationCompressor.java \cite{impala-solution}} class which they use to solve exactly this problem. I also thought of the idea to solve the issue in Hive, however for a long term, it may not be the most desirable strategy. Hive would have to always convert the Paths whenever it passes them to Hadoop (Impala does this). I think if the problem can be solved in  Hadoop - where it comes from - without a performance overhead, it should be done there. My task is to give the community a proof that CPU overhead will not happen because of the memory fix. 
+\subsection{Apache Impala's Solution for the Problem}
+Apache Impala also faced problems caused by the size of memory used by the Paths. Impala is a query engine on top of Hadoop, similar to Hive. The Impala community had already solved this problem on their side. Impala has a \textit{HdfsPartitionLocationCompressor.java \cite{impala-solution}} class which they use to solve exactly this problem. I also thought of the idea to solve the issue in Hive; however, for the long term, it may not be the most desirable strategy. Hive would have to always convert the Paths whenever it passes them to Hadoop (Impala does this). I think if the problem can be solved in Hadoop - where it originates - without a performance overhead, it should be done there. My task is to give the community proof that CPU overhead will not happen because of the memory fix. 
 
-\section{Benchmarking on a data center cluster}
-The patch would effect every part of Hadoop, so a thorough benchmark is needed. The performance tests run on a data center cluster with Hadoop 3.0.0 for more than a month. From 13 September to 25 September without my patch, from 26 September to 19 October with my patch. The following charts will show the results for some test cases. On these diagrams, the values before the red line are without my patch and after the red line are the values including my patch. The points on the figures represent a measurement taken every day. I created several diagrams to show the full result to the community. I will only include a part of them here, the full document can be found on the Jira ticket (HDFSbenchmark.pdf) \cite{hdfs-path}.
+\section{Benchmarking on a Data Center Cluster}
+The patch would affect every part of Hadoop, so a thorough benchmark is needed. The performance tests ran on a data center cluster with Hadoop 3.0.0 for more than a month – from 13 September to 25 September without my patch, and from 26 September to 19 October with my patch. The following charts will show the results for some test cases. On these diagrams, the values before the red line are without my patch and after the red line are the values including my patch. The points on the figures represent a measurement taken every day. I created several diagrams to show the full result to the community. I will only include part of them here; the full document can be found on the Jira ticket \cite{hdfs-path} (HDFSbenchmark.pdf).
 
 \noindent Parameters of the benchmarks: 
 \begin{itemize}
@@ -438,7 +436,7 @@ The patch would effect every part of Hadoop, so a thorough benchmark is needed. 
 	\item Number of files for NNBenchmark: 50000
 \end{itemize}
 
-\subsection{TeraSort benchmark}
+\subsection{TeraSort Benchmark}
 "TeraSort reads the input data and uses MapReduce to sort them." \cite{terasort}
 
 \begin{figure}[H]
@@ -447,7 +445,7 @@ The patch would effect every part of Hadoop, so a thorough benchmark is needed. 
 	\caption{TeraSort Average CPU time}
 \end{figure}
 
-The diagram shows some spikes after the red line. This could be caused by bigger pressure put on the cluster, or maybe the Garbage Collection happened more often during the run. These spikes were common before applying my patch as well, so it most probably does not represent any decrease. For the following diagrams where spikes are present, it is also the most probable explanation.
+The diagram shows some spikes after the red line. This could be caused by more pressure put on the cluster, or maybe the Garbage Collection happened more often during the run. These spikes were common before applying my patch as well, so it most probably does not represent any decrease in CPU. For the following diagrams, where spikes are present, this is also the most probable explanation.
 
 \begin{figure}[H]
 	\includegraphics[width=125mm, keepaspectratio]{figures/terasort_map.png}
@@ -457,7 +455,7 @@ The diagram shows some spikes after the red line. This could be caused by bigger
 
 The TeraSort average time taken by Map operations is a little less after the red line, but looking into only this diagram does not mean a lot.
 
-\subsection{TeraValidate benchmark}
+\subsection{TeraValidate Benchmark}
 "TeraValidate validates the sorted output to ensure that the keys are sorted within each file. If anything is wrong with the sorted output, the output of this reducer reports the problem." \cite{terasort}
 
 \begin{figure}[H]
@@ -472,7 +470,7 @@ The TeraSort average time taken by Map operations is a little less after the red
 \end{figure}
 
 \subsection{TestDFSIO}
-TestDFSIO is a benchmark for measuring the capacity of HDFS for reading and writing data. It is helpful to discover performance bottlenecks.
+TestDFSIO is a benchmark for measuring the capacity of HDFS for reading and writing data. It is helpful for discovering performance bottlenecks.
 
 \begin{figure}[H]
 	\includegraphics[width=125mm, keepaspectratio]{figures/dfsio_job.png}
@@ -481,7 +479,7 @@ TestDFSIO is a benchmark for measuring the capacity of HDFS for reading and writ
 \end{figure}
 
 \subsection{NNBench - NameNode stress test}
-This benchmark generates a lot of HDFS requests for putting a high HDFS management stress on the NameNode. The benchmark can create, read, rename and delete files on HDFS.
+This benchmark generates a lot of HDFS requests for putting high HDFS management stress on the NameNode. The benchmark can create, read, rename and delete files on HDFS.
 
 \begin{figure}[H]
 	\includegraphics[width=125mm, keepaspectratio]{figures/nn_exec.png}
@@ -494,18 +492,18 @@ This benchmark generates a lot of HDFS requests for putting a high HDFS manageme
 	\caption{NameNode latency of open\_read operation}
 \end{figure}
 
-\section{Result of the benchmark, further tasks}
+\section{Result of the Benchmark, Further Tasks}
 Looking into the charts and comparing the results of the base (before the red line) and the results with the patch included (after the red line), we cannot see any significant difference in CPU time, so this benchmark gave a positive outcome. 
 
-Since the fix would affect many other components, more benchmarks are still needed to be certain that this will not decrease the perfomance of Hadoop. Hive benchmark is currently in progress to see if any performance bottleneck is introduced on the "client" side by changing the implementation of Paths.
+Since the fix would affect many other components, more benchmarks are still needed to be certain that this will not decrease the performance of Hadoop. A Hive benchmark is currently in progress to see if any performance bottlenecks are introduced on the "client" side by changing the implementation of Paths.
 
-\chapter{Another memory issue in Hive - HIVE-20760}
-It is known, that Hive memory depends on mainly two factors: one is the number of partitions in tables and the other one is the number of connections made to HiveServer2. In the first part of my work I focused on the number of partitions and found a way that would decrease the memory of HiveServer2 when our tables are highly partitioned. In this section I will try to get a better understanding what uses so much memory when multiple connections are made and see if the issue can be fixed or not. 
+\chapter{Another Memory Issue in Hive - HIVE-20760}
+It is well-known that Hive memory depends on mainly two factors: one is the number of partitions in tables and the other is the number of connections made to HiveServer2. In the first part of my work, I focused on the number of partitions and found a way to decrease the memory of HiveServer2 when tables are highly partitioned. In this section, I will try to get a better understanding of what uses so much memory when multiple connections are made and see if the issue can be fixed or not. 
 
-\section{Memory of HS2 with multiple connections}
-HiveServer2 can serve multiple clients at the same time. Obviously, the resources needed for handling multiple connections is proportional to the number of clients connected to the server. Let's see what uses memory in this scenario.
+\section{Memory of HS2 with Multiple Connections}
+HiveServer2 can serve multiple clients at the same time. Obviously, the resources needed for handling multiple connections are proportional to the number of clients connected to the server. Let's see what uses memory in this scenario.
 
-I wanted to see the memory effect of the number of connections only, so I decided to analyze the memory before compilation and execution happen. This way I can get a clearer picture since memory used by compilation or execution will not be presented, only the overhead of each connection. 
+I only wanted to see the memory effect of the number of connections, so I decided to analyze the memory before compilation and execution. This way I could get a clearer picture since memory used by compilation or execution will not be present, only the overhead of each connection. 
 
 For each connection made to Hive, a session is created. I used a bash script for simulating multiple client connections to Hive locally. 
 
@@ -516,9 +514,10 @@ for i in `seq 1 50`;
 &done;	
 \end{lstlisting}
 
-In the body of the for loop, for each iteration, I made a connection to HiveServer2 using the Beeline command line client. As arguments, I provided the JDBC connection URL of HS2 (the default port that HS2 is listening is 10000) and the username/password, which is admin/admin as a default value.
+In the body of the for loop, for each iteration, I made a connection to HiveServer2 using the Beeline command line client. As arguments, I provided the JDBC connection URL of HS2 (the default port that HS2 is listening is 10000) and the username/password, for which the default values are admin/admin.
 
-With the previously mentioned measuring code, I created a heap dump after 50 connections were made to HS2 and session were already created. The following figure shows the objects that use the most heap memory.
+With the previously mentioned measuring code, I created a heap dump after 50 connections were made to HS2 and all the sessions were already created for them. The following figure shows the objects that use the most heap memory.
+
 
 \begin{figure}[H]
 	\includegraphics[width=150mm, keepaspectratio]{figures/hiveconf_memory.png}
@@ -526,31 +525,31 @@ With the previously mentioned measuring code, I created a heap dump after 50 con
 	\caption{Object with the most retained memory}
 \end{figure}
 
-For each session, an individual HiveConf object is created, which contains all the configuration properties of Hive. These configurations can easily contain thousands of values so the big heap memory is not that surprising. The first thing I recognized during the analysis of the heap dump, is that each HiveConf object of a session uses the same amount of memory. Thus, these objects cannot be that different from each other. If that is the case, why do we have a different one for every session?
+For each session, an individual HiveConf object is created, which contains all the configuration properties of Hive. These configurations can easily contain thousands of values so the heavy use of heap memory is not that surprising. The first thing I recognized during the analysis of the heap dump is that each HiveConf object of a session uses the same amount of memory. Thus, these objects cannot be that different from each other. If that is the case, why have a different object for each session?
 
-The HiveConf class is a descendant of the \textit{Configuration.java} class, that is inherited from Hadoop. The biggest memory of each HiveConf a private Properties field. The Properties class is a type of HashMap that only contains String keys and values. Looking into the Properties fields of each HiveConf confirmed my assumption: they have exactly the same values apart from a few properties.
+The HiveConf class is a descendant of the \textit{Configuration.java} class that is inherited from Hadoop. The biggest memory user of each HiveConf is a private Properties field. The Properties class is a type of HashMap that only contains String keys and values. Looking into the Properties fields of each HiveConf confirmed my assumption:  apart from a few properties, they have exactly the same values.
 
-This inspired me to look more into the details. How these configuration objects are used? When we start Hive, Hadoop configuration properties are applied, and we read Hive's configuration file (hive-site.xml) and overlay those properties. After this, for each session, we create a new HiveConf instance with copying the existing "base." This way sessions can add their own unique Properties to their configuration object. 
+This inspired me to look more into the details. How are these configuration objects used? When we start Hive, Hadoop configuration properties are applied, and we read Hive's configuration file (hive-site.xml) and overlay those properties. After this, for each session, we create a new HiveConf instance by copying the existing "base." This way sessions can add their own unique Properties to their configuration object. 
 
 It is important to notice that we rarely touch the "base" configurations. Usually, the sessions add some Properties to it and the base configuration remains untouched. To get rid of the memory overhead, a possible solution would be to use the same Properties object for each HiveConf if the values in them are the same.
 
-\section{HIVE-20760: Reducing memory overhead due to multiple HiveConfs}
-I already saw a somewhat similar problem, when looking into the partition memory issues. PartitionDesc used exactly the same Properties object, and the solution for that was introducing CopyOnFirstWriteProperties class \cite{hive-partitions}. 
+\section{HIVE-20760: Reducing Memory Overhead Due to Multiple HiveConfs}
+I already saw a somewhat similar problem when looking into the partition memory issues. PartitionDesc used exactly the same Properties object, and the solution for that was introducing the CopyOnFirstWriteProperties class \cite{hive-partitions}. 
 
-It is a special subclass of Properties, designed to save memory when lots of identical Properties are created. The class uses interning to solve the problem: it has an interned Properties field which points to the same object for all instances that has identical contents. If any mutating method (\eg setProperties, put, clear) is called on the object, the content is copied to "this" instance, and we no longer use the interned object. 
+This is a special subclass of Properties designed to save memory when lots of identical Properties are created. The class uses interning to solve the problem: it has an interned Properties field which points to the same object for all instances that have identical contents. If any mutator methods (\eg setProperties, put, clear) are called on the object, the content is copied to "this" instance, and we no longer use the interned object. 
 
-As a first idea, I thought that using this class would help. However, HiveConfs are used differently from PartitionDesc, and this solution was designed for that. We often call mutating methods on the Properties field of HiveConf. Each session is able to add additional values to its configuration. Thus, another solution is needed to save memory in this scenario, since using CopyOnFirstWriteProperties immediately throws away the interned Properties if we add a new property to it.
+As a first idea, I thought that using this class would help. However, HiveConfs are used differently from PartitionDesc, and this solution was designed for that. We often call mutator methods on the Properties field of HiveConf. Each session is able to add additional values to its configuration. Thus, another solution is needed to save memory in this scenario, since using CopyOnFirstWriteProperties immediately throws away the interned Properties if we add a new property to it.
 
-\subsection{Introducing HiveConfProperties class}
-My idea was to intern only the "base" Properties. When we create a HiveConf from an already existing one using its "copy constructor", instead of creating a built-in \textit{java.util.Properties} we will use a subclass of Properties. I named this class HiveConfProperties. 
+\subsection{Introducing the HiveConfProperties Class}
+My idea was to intern only the "base" Properties. When we create a HiveConf from an already existing one using its "copy constructor", instead of creating a built-in \textit{java.util.Properties}, we will use a subclass of Properties. I named this class HiveConfProperties. 
 
-I designed HiveConfProperties to save memory caused by the many nearly individual HiveConfs. Right after we create a HiveConfProperties instance, from an already existing Properties, we can intern that. For interning, I used \textit{com.google.common.collect.Interner}. 
+I designed HiveConfProperties to save memory caused by the many nearly identical HiveConfs. Right after we create a HiveConfProperties instance, from an already existing Properties, we can intern that. For interning, I used \textit{com.google.common.collect.Interner}. 
 
-\subsubsection{How interning works} 
- When we have an object that we want to intern, we search for it in the "object pool" to see if there is already an object equal to the corresponding one. If we find one, we will use that in the future. If there is no object equal to the actual one then we put the object into the pool and then use it. Fortunately, there is already an existing implementation of this interning method in the Google Guava core java library.
+\subsubsection{How Interning Works} 
+When we have an object that we want to intern, we search for it in the "object pool" to see if there is already an object equal to the corresponding one. If we find one, we will use that in the future. If there is no object equal to the current one then we put the object into the pool and then use it. Fortunately, there is already an existing implementation of this interning method in the Google Guava core java library.
  
- \subsubsection{How HiveConfProperties works}
- I divided the Properties object into two parts: an interned part, which contains the base Properties, and since we descend from \textit{the java.util.Properties}, we can use the "this" object to store properties as well.
+  \subsubsection{How HiveConfProperties Works}
+ I divided the Properties object into two parts: an interned part, which contains the base Properties, and since we inherit from \textit{the java.util.Properties}, we can use the "this" object to store properties as well.
  
  \begin{figure}[H]
  	\includegraphics[width=100mm,keepaspectratio]{figures/hiveconf_solution.png}
@@ -575,15 +574,15 @@ public HiveConfProperties(Properties p) {
 }
 \end{lstlisting}
 
-The code above is responsible for creating a HiveConfProperties instance. It stores the interned (base) Properties in a private field. Right after we want to construct an instance, we intern the given Properties object. The process that \textit{interner.intern(...)} does is explained above. A null check is also a must when we create a new HiveConfProperties, since calling the constructor with a null parameter is possible in the code. I found this possibility when I submitted the patch to Apache Hive Jira and "PreCommit" tests failed during the Jenkins build. The \textit{removed} and the \textit{duplicatedPropertiesCount} field is needed for the interning to work as expected. 
+The code above is responsible for creating a HiveConfProperties instance. It stores the interned (base) Properties in a private field. Right after we want to construct an instance, we intern the given Properties object. The process that \textit{interner.intern(...)} does is explained above. A null check is also a must when we create a new HiveConfProperties, since calling the constructor with a null parameter is possible in the code. I found this possibility when I submitted the patch to Apache Hive Jira and the "PreCommit" tests failed during the Jenkins build. The \textit{removed} and the \textit{duplicatedPropertiesCount} fields are needed for interning to work as expected. 
 
-If someone calls \textit{HiveConf.unset} function, \textit{Properties.remove} (this case \textit{HiveConfProperties.remove} will be called. If the property we want to remove is contained by the interned Properties object, we cannot remove it directly, because other HiveConfProperties may use it. To solve this issue, I introduced the \textit{removed} Properties field to store those values that should no longer be available. So if we want to get the value of a key, we first check if the key is in the \textit{removed} Properties: if the answer is yes, we will consider this property unavailable.
+If someone calls \textit{HiveConf.unset} function, \textit{Properties.remove} (in this case \textit{HiveConfProperties.remove} will be called. If the property we want to remove is contained by the interned Properties object, we cannot remove it directly because other HiveConfProperties may use it. To solve this issue, I introduced the \textit{removed} Properties field to store values that should no longer be available. So if we want to get the value of a key, we first check if the key is in the \textit{removed} Properties: if the answer is yes, we will consider this property unavailable.
 
-Duplications can occur in my solution: if someone would like to set a property, that is already in the \textit{interned} field, we cannot override it there, so we should add it in the non-interned Properties to return the correct value. However, in this way, we will have two properties with the same content. Calculating the size of the HashMap will be inaccurate. For solving this issue, I created a counter field called \textit{duplicatedPropertiesCount} to store the number of the duplicates. Knowing this value will allow us to provide an accurate size. 
+Duplication can occur in my solution: if someone would like to set a property that is already in the \textit{interned} field, we cannot override it there, so we should add it in the non-interned Properties to return the correct value. However, this way, we will have two properties with the same content. Calculating the size of the HashMap will be inaccurate. In order to solve this issue, I created a counter field called \textit{duplicatedPropertiesCount} to store the number of the duplicates. Knowing this value will allow us to provide an accurate size. 
 
-Since HiveConfProperties is a subclass of \textit{java.util.Properties} and because of it subclass of \textit{java.util.HashTable}, I provided implementation of its methods.  \textit{hadoop.conf.Configuration} (base class of HiveConf) and \textit{HiveConf} only uses a subset of these functions, so I decided to implement only those, that can be invoked. For the other methods I will throw a \textit{NotImplementedException}. 
+Since HiveConfProperties is a subclass of \textit{java.util.Properties} and, because of this, a subclass of \textit{java.util.HashTable}, I implemented its methods.  \textit{hadoop.conf.Configuration} (base class of HiveConf) and \textit{HiveConf} only use a subset of these functions, so I decided to implement only methods that can be invoked. For the other methods, a \textit{NotImplementedException} is thrown.  
 
-\subsection{Overriden functions of Properties}
+\subsection{Overridden Functions of Properties}
 \subsubsection{getProperty}
 \begin{lstlisting}
 @Override
@@ -598,7 +597,7 @@ public String getProperty(String key) {
 }
 \end{lstlisting}
 
-If non-interned (super) contains the key, return that value. If not, we need to check if it is not in the \textit{removed} Properties (still valid). If the value is valid, return it from the base (interned). \textit{getProperty(String key, String defaultValue)} and \textit{get} method from HashTable works the same way. 
+If non-interned (super) contains the key, return that value. If not, we need to make sure it is not in the \textit{removed} Properties (still valid). If the value is valid, return it from the base (interned). \textit{getProperty(String key, String defaultValue)} and \textit{get} methods from HashTable work the same way. 
 \subsubsection{setProperty}
 \begin{lstlisting}
 @Override
@@ -618,10 +617,10 @@ public synchronized Object setProperty(String key, String value) {
 }
 \end{lstlisting}
 
-If interned already contains the property to be set, we need to set it in the non-interned Properties. However, in this way, we will have duplicates, since both Properties instance will contain the same value. Thus, to be able to give the correct size when needed, we need to count these duplicates. If we are setting a value, that had been removed previously, we need to "revalidate" the property. If the value is not changed, we should not set it in the non-interned Properties to avoid unnecessary duplicates. 
+If interned already contains the property to be set, we need to set it in the non-interned Properties. However, in this way, we will have duplicates, since both Properties instance will contain the same value. Thus, to be able to give the correct size when needed, we need to count these duplicates. If we are setting a value that had been previously removed, we need to "revalidate" the property. If the value is not changed, we should not set it in the non-interned Properties in order to avoid unnecessary duplicates. 
 
-\subsubsection{mergeProperties helper function}
-To override functions such as \textit{stringPropertyNames} or \textit{keySet} \etc I introduced a helper function. Since for these methods, we need values of the properties from both (non-interned and interned) objects, the helper method will merge the two parts into one Properties. This way we can just delegate the call to the merge Properties object. In the \textit{mergeProperties} I simply iterated through both parts and collected each HashTable entry (if not removed) and returned a new Properties instance. 
+\subsubsection{The mergeProperties Helper Function}
+To override functions such as \textit{stringPropertyNames} or \textit{keySet} \etc, I introduced a helper function. Since for these methods we need values of the properties from both (non-interned and interned) objects, the helper method will merge the two parts into one Properties object. This way we can just delegate the call to the merged Properties object. In the \textit{mergeProperties} I simply iterated through both parts and collected each HashTable entry (if not removed) and returned a new Properties instance. 
 
 \noindent Overriding for example the keySet function will look like this:
 \begin{lstlisting}
@@ -631,7 +630,7 @@ public Set<Object> keySet() {
 }
 \end{lstlisting}
 
-We can do the same for all the functions where merging is needed: \textit{keys, entrySet, stringPropertyNames, toString \etc}
+We can do the same for all functions where merging is needed: \textit{keys, entrySet, stringPropertyNames, toString \etc}
 
 \subsubsection{size}
 \begin{lstlisting}
@@ -643,7 +642,7 @@ public synchronized int size() {
 	return super.size();
 }
 \end{lstlisting}
-The size of HiveConfProperties is the size of interned + size of non-interned - \textit{duplicatedPropertiesCount}. We have to subtract the \textit{duplicatedPropertiesCount}, because duplicates can happen. Also, we have to subtract the size of the removed Properties, since those had been removed.
+The size of HiveConfProperties is the size of interned + size of non-interned - \textit{duplicatedPropertiesCount}. We have to subtract the \textit{duplicatedPropertiesCount}, because duplicates can happen. Also, we have to subtract the number of removed Properties, since those have been removed.
 
 \subsubsection{containsKey, containsValue}
 \begin{lstlisting}
@@ -655,7 +654,7 @@ public synchronized boolean containsKey(Object key) {
 	return super.containsKey(key);
 }
 \end{lstlisting}
-A key or value is contained by a HiveConfProperties instance, if its removed field does not contain it and the interned or non-interned does.
+A key or value is contained by a HiveConfProperties instance if its removed field does not contain it and the interned or non-interned does.
 
 \subsubsection{remove}
 \begin{lstlisting}
@@ -671,18 +670,18 @@ public synchronized Object remove(Object key) {
 	return super.remove(key);
 }
 \end{lstlisting}
-We cannot remove the property from the interned Properties (other HiveConfs may use it). We store the value in the \textit{removed} Properties field and in the future, the properties stored there will not be valid. If we would like to remove a value from the non-interned field, we can simply do that, since it will not affect any other HiveConfProperties instance.
+We cannot remove a property from the interned Properties (since other HiveConfs may use it). So we store the value in the \textit{removed} Properties field and, in the future, the properties stored there will not be valid. If we would like to remove a value from the non-interned field, we can simply do that, since it will not affect any other HiveConfProperties instance.
 
 \subsubsection{equals}
-Maybe the most complicated method is the \textit{equals} inherited from the HashTable class. Deciding whether an object is equal to another or not should be fast. Merging the two parts can be slow if equals is used widely. Thus, I followed the way that HashTable's equals method works. It is possible to call equals on a HiveConfProperties object by giving a simple \textit{java.util.Properties}. The equals method should also work correctly in this scenario. I will not include the code for \textit{equals} method, because it is too big, but the code can be found in the Jira for the issue \cite{hive-conf}.
+Perhaps the most complicated method is the \textit{equals} inherited from the HashTable class. Deciding whether an object is equal to another or not should be fast. Merging the two parts can be slow if equals is used widely. Thus, I followed the way that HashTable's equals method works. It is possible to call equals on a HiveConfProperties object by giving a simple \textit{java.util.Properties}. The equals method should also work correctly in this scenario. I will not include the code for \textit{equals} method, because it is too big, but the code can be found in the Jira for the issue \cite{hive-conf}.
 
-With the help of \textit{instanceof} keyword we can decide whether the other Properties is a HiveConfProperties or not. If the answer is positive, we need to check its interned Properties object as well. As a first step, we check their sizes. If they are not equal, we can return false immediately. If sizes are equal, first we will iterate through the non-interned Properties in the "this" object. For each HashTable entries we will check two things: if the value is null in the entry, "other" HiveConfProperties should not contain the key, otherwise, the two objects cannot be the same, so we can return false. If the value for the entry is not null, the value from "this" should be equal to value from the other object. 
+With the help of \textit{instanceof} keyword we can decide whether the other Properties is a HiveConfProperties or not. If it is, we need to check its interned Properties object as well. As a first step, we check their sizes. If they are not equal, we can return false immediately. If the sizes are equal, first we will iterate through the non-interned Properties in the "this" object. For each HashTable entry we will check two things: if the value is null in the entry, the "other" HiveConfProperties should not contain the key, otherwise, the two objects cannot be the same, so we can return false. If the value for the entry is not null, the value from "this" should be equal to the value from the other object. 
 
-If all entries from the non-interned Properties are contained by the other Properties object, we still need to check the same for this.interned Properties. The code will be the same except, we will iterate through the entries of the interned Properties. 
+If all entries from the non-interned Properties are contained by the other Properties object, we still need to check the same for this.interned Properties. The code will be the same, except we will iterate through the entries of the interned Properties. 
 
-The code is simpler if the other object is not a HiveConfProperties. We do not need the check two parts. We can just iterate through the entries of the "other" Properties and do the same checks as mentioned before.
+The code is simpler if the other object is not a HiveConfProperties. We do not need to check two parts. We can just iterate through the entries of the "other" Properties and do the same checks as mentioned before.
 
-\subsection{Applying the solution in HiveConf}
+\subsection{Applying the Solution in HiveConf}
 HiveConf is a descendant of Configuration class, which comes from the Hadoop Common library. The properties field that is causing the memory overhead is also in the base class and its visibility is private. We have two options to resolve this:
 \begin{enumerate}
 	\item Change the visibility of properties field to protected, so in HiveConf we can simply change the type of the field to HiveConfProperties
@@ -707,7 +706,7 @@ I used \textit{FieldUtils} class from \textit{commons-lang} library to access th
 
 HiveConf has an additional Properties object called \textit{origProp}. The values contained by the \textit{origProp} objects for different HiveConfs are also very similar, so interning those as well would also remove some memory overhead. 
 
-\subsection{Memory win by the change}
+\subsection{Memory Savings by the Change}
 \begin{figure}[H]
 	\includegraphics[width=150mm, keepaspectratio]{figures/hiveconf_orig.png}
 	\centering
@@ -724,7 +723,7 @@ Comparing the heap dumps shows the benefits of interning the Properties in HiveC
 
 When we use Hive on Spark running with a large number of cores per executor, we have about 10\% of memory overhead due to multiple HiveConfs. This can be reduced significantly using my solution. 
 
-\section{Future work around configuration objects}
-The issue I reported is still ongoing since tests are needed to see if my patch works correctly in every scenario. I also provided a test class, which needs to be expanded, to cover all the scenarios a Properties object can be used by HiveConf. 
+\section{Future Work Around Configuration Objects}
+The issue I reported is still ongoing since tests are needed to see if my patch works correctly in every scenario. I also provided a test class, which needs to be expanded, to cover all the scenarios in which a Properties object can be used by HiveConf. 
 
-Hadoop also has an implementation of the Configuration class, called JobConf. These objects are also present in HS2 and cause memory overhead the same way as HiveConf does. There is an open source Jira ticket that was intended to solve the duplication without getting \textit{ConcurrentModificationException}, but the memory problem was not resolved just prevented throwing the exception \cite{hive-jobconf}. The solution I provide for HiveConf could also be used for getting rid of the duplication in JobConf.
+Hadoop also has an implementation of the Configuration class called JobConf. JobConf objects are also present in HS2 and cause memory overhead the same way HiveConf does. There is an open source Jira ticket that was intended to solve duplication without getting a \textit{ConcurrentModificationException}, but the memory problem was not resolved just prevented throwing the exception \cite{hive-jobconf}. The solution I provide for HiveConf could also be used for getting rid of the duplication of JobConf.

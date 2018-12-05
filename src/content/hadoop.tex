@@ -31,7 +31,7 @@ As a result of this approach, NameNode is a Single Point of Failure in the HDFS 
 \begin{figure}[H]
 	\includegraphics[width=80mm, keepaspectratio]{figures/namenode_problem.png}
 	\centering
-	\caption{Problem with NameNode}
+	\caption{Problem with NameNode \cite{Secondary-NameNode}}
 \end{figure}
 The image shows how NameNode stores information \cite{Secondary-NameNode}. There are two different files:
 \begin{itemize}
@@ -46,7 +46,7 @@ It is important to remember that the Secondary NameNode is not a real backup Nam
 \begin{figure}[H]
 	\includegraphics[width=80mm, keepaspectratio]{figures/secondary_namenode.png}
 	\centering
-	\caption{Solution using the Secondary NameNode}
+	\caption{Solution using the Secondary NameNode \cite{Secondary-NameNode}}
 \end{figure}
 
 \subsection{DataNodes \cite{Shvachko:2010:HDF:1913798.1914427}}
@@ -97,9 +97,9 @@ This example shows how MapReduce handles the problem of counting words. Let's sa
 \end{itemize}
 
 \subsection{Advantages of MapReduce \cite{MapReduce-example}}
-\subsubsection{Parallel processing}
+\subsubsection{Parallel Processing}
 In MapReduce we divide the job among multiple nodes, so they can work on their part of the data parallelly. This way, data processing is done by multiple machines instead of one, so the time is significantly reduced.
-\subsubsection{Data locality}
+\subsubsection{Data Locality}
 In Hadoop MapReduce, instead of moving data into the processing unit, we move the processing unit to the data. The traditional approach has its limit when it comes to processing big data. Moving large amounts of data is costly: network issues can occur and the master node (where data is stored) can get overloaded and may fail. 
 
 However, the MapReduce approach is very cost efficient, since all the nodes are working simultaneously on their part of the data and there is no chance of a node getting overloaded.
@@ -168,7 +168,7 @@ Although, the Hadoop MapReduce framework is written in Java, with the help of St
 MapReduce gives us a solution for many big data problems. However, for some scenarios, MapReduce is not the ideal choice: \eg real-time analysis. In Hadoop 1.0 we could not use components other than MapReduce (like Apache Storm which is ideal for real-time computation). The desire for utilizing the potential provided by the distributed file system (HDFS) for other solutions grew. YARN was the answer to fulfill this claim.
 
 \section{YARN  \cite{Hadoop-current}}
-\subsection{Hadoop 1.0 resource management}
+\subsection{Hadoop 1.0 Resource Management}
 Previous to Hadoop 2.0, a single JobTracker was responsible for monitoring resources, distributing MapReduce jobs for the DataNodes and monitoring these jobs. 
 
 In Hadoop 1.0 the MapReduce module was responsible for cluster resource management and data processing as well.
@@ -218,7 +218,7 @@ The ResourceManager is divided into two main components: Scheduler and Applicati
 \begin{figure}[H]
 	\includegraphics[width=110mm, keepaspectratio]{figures/yarn.png}
 	\centering
-	\caption{Yarn architecture}
+	\caption{Yarn architecture \cite{Hadoop-current}}
 	\centering
 \end{figure}
 

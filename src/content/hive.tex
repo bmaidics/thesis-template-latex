@@ -13,7 +13,7 @@ The maximum data size allowed in a traditional RDBMS is 10's of Terabytes. Howev
 \subsection{Conclusion}
 Hive is a great choice if we want to analyze large, relatively static data sets, fast querying is not necessary and easy, low-cost scalability is required. RDBMS provides fast responses for analyzing data dynamically, but scalability and maximum data size are limited.
 
-\section{Data storage}
+\section{Data Storage}
 Hive structures data in the following units  \cite{Hive-paper, Hive-apache}:
 \begin{itemize}
 \item \textbf{Databases}: namespaces to avoid conflicts of table, partition or bucket names.
@@ -106,7 +106,7 @@ At physical plan generation (8) the logical plan is split into a series of Map, 
 
 The Driver gets back the physical plan (9) and sends it to the corresponding execution engine (which is MapReduce by default - 10, 11). In this case, Hadoop executes a series of Map and Reduce tasks and returns the result to the Driver (12, 13), which sends it to the user (14).
 
-\section{Hive memory limitations}
+\section{Hive Memory Limitations}
 HiveServer2 and Hive Metastore require massive resources, especially when it comes to memory. For running up to 40 concurrent queries, the recommended heap size range is 12-16 GB. Once we go above 16 GB it is recommended to split HS2 into multiple instances and load-balance them \cite{Hive-memory-problems}.
 
 Although with a correct configuration and setup we can make our HiveServer2 instance long living, crashes can occur because of Out Of Memory errors (OOM) in certain use-cases. Thus, minimizing the memory footprint whenever we can is a must.
