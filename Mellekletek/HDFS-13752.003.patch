@@ -1,0 +1,401 @@
+From 44ccbaec4f691f84374249f529e376fd268b602b Mon Sep 17 00:00:00 2001
+From: Barnabas Maidics <barnabas.maidics@cloudera.com>
+Date: Wed, 22 Aug 2018 16:10:40 +0200
+Subject: [PATCH] HDFS-13752. fs.Path stores file path in java.net.URI causes
+ big memory waste
+
+---
+ .../src/main/java/org/apache/hadoop/fs/Path.java   | 170 +++++++++++++--------
+ 1 file changed, 103 insertions(+), 67 deletions(-)
+
+diff --git a/hadoop-common-project/hadoop-common/src/main/java/org/apache/hadoop/fs/Path.java b/hadoop-common-project/hadoop-common/src/main/java/org/apache/hadoop/fs/Path.java
+index b6244d6a365..43bbd605f4d 100644
+--- a/hadoop-common-project/hadoop-common/src/main/java/org/apache/hadoop/fs/Path.java
++++ b/hadoop-common-project/hadoop-common/src/main/java/org/apache/hadoop/fs/Path.java
+@@ -71,21 +71,28 @@
+ 
+   private static final long serialVersionUID = 0xad00f;
+ 
+-  private URI uri; // a hierarchical uri
++  private String path;
++
++  private String scheme;
++
++  private String authority;
++
++  private String fragment;
+ 
+   /**
+    * Test whether this Path uses a scheme and is relative.
+    * Pathnames with scheme and relative path are illegal.
+    */
+   void checkNotSchemeWithRelative() {
+-    if (toUri().isAbsolute() && !isUriPathAbsolute()) {
++    //instead of URI.isAbsolute(): scheme != null (the same)
++    if (scheme != null && !isUriPathAbsolute()) {
+       throw new HadoopIllegalArgumentException(
+           "Unsupported name: has scheme but relative path-part");
+     }
+   }
+ 
+   void checkNotRelative() {
+-    if (!isAbsolute() && toUri().getScheme() == null) {
++    if (!isAbsolute() && scheme == null) {
+       throw new HadoopIllegalArgumentException("Path is relative");
+     }
+   }
+@@ -100,8 +107,8 @@ public static Path getPathWithoutSchemeAndAuthority(Path path) {
+     // This code depends on Path.toString() to remove the leading slash before
+     // the drive specification on Windows.
+     Path newPath = path.isUriPathAbsolute() ?
+-      new Path(null, null, path.toUri().getPath()) :
+-      path;
++        new Path(null, null, path.getPath()) :
++        path;
+     return newPath;
+   }
+ 
+@@ -143,7 +150,7 @@ public Path(String parent, Path child) {
+    */
+   public Path(Path parent, Path child) {
+     // Add a slash to parent's path so resolution is compatible with URI's
+-    URI parentUri = parent.uri;
++    URI parentUri = parent.toUri();
+     String parentPath = parentUri.getPath();
+     if (!(parentPath.equals("/") || parentPath.isEmpty())) {
+       try {
+@@ -153,18 +160,18 @@ public Path(Path parent, Path child) {
+         throw new IllegalArgumentException(e);
+       }
+     }
+-    URI resolved = parentUri.resolve(child.uri);
++    URI resolved = parentUri.resolve(child.toUri());
+     initialize(resolved.getScheme(), resolved.getAuthority(),
+                resolved.getPath(), resolved.getFragment());
+   }
+ 
+-  private void checkPathArg( String path ) throws IllegalArgumentException {
++  private void checkPathArg( String pathString ) throws IllegalArgumentException {
+     // disallow construction of a Path from an empty string
+-    if ( path == null ) {
++    if ( pathString == null ) {
+       throw new IllegalArgumentException(
+           "Can not create a Path from a null string");
+     }
+-    if( path.length() == 0 ) {
++    if( pathString.length() == 0 ) {
+        throw new IllegalArgumentException(
+            "Can not create a Path from an empty string");
+     }   
+@@ -188,8 +195,8 @@ public Path(String pathString) throws IllegalArgumentException {
+     }
+ 
+     // parse uri components
+-    String scheme = null;
+-    String authority = null;
++    String schemeTemp = null;
++    String authorityTemp = null;
+ 
+     int start = 0;
+ 
+@@ -198,7 +205,7 @@ public Path(String pathString) throws IllegalArgumentException {
+     int slash = pathString.indexOf('/');
+     if ((colon != -1) &&
+         ((slash == -1) || (colon < slash))) {     // has a scheme
+-      scheme = pathString.substring(0, colon);
++      schemeTemp = pathString.substring(0, colon);
+       start = colon+1;
+     }
+ 
+@@ -207,14 +214,14 @@ public Path(String pathString) throws IllegalArgumentException {
+         (pathString.length()-start > 2)) {       // has authority
+       int nextSlash = pathString.indexOf('/', start+2);
+       int authEnd = nextSlash > 0 ? nextSlash : pathString.length();
+-      authority = pathString.substring(start+2, authEnd);
++      authorityTemp = pathString.substring(start+2, authEnd);
+       start = authEnd;
+     }
+ 
+     // uri path is the rest of the string -- query & fragment not supported
+-    String path = pathString.substring(start, pathString.length());
++    String pathTemp = pathString.substring(start, pathString.length());
+ 
+-    initialize(scheme, authority, path, null);
++    initialize(schemeTemp, authorityTemp, pathTemp, null);
+   }
+ 
+   /**
+@@ -223,7 +230,11 @@ public Path(String pathString) throws IllegalArgumentException {
+    * @param aUri the source URI
+    */
+   public Path(URI aUri) {
+-    uri = aUri.normalize();
++    aUri = aUri.normalize();
++    path = aUri.getPath();
++    scheme = aUri.getScheme();
++    authority = aUri.getAuthority();
++    fragment = aUri.getFragment();
+   }
+   
+   /**
+@@ -250,16 +261,37 @@ public Path(String scheme, String authority, String path) {
+     initialize(scheme, authority, path, null);
+   }
+ 
+-  private void initialize(String scheme, String authority, String path,
+-      String fragment) {
++  private void initialize(String schemeString, String authorityString, String pathString,
++      String fragmentString) {
+     try {
+-      this.uri = new URI(scheme, authority, normalizePath(scheme, path), null, fragment)
+-        .normalize();
++      //Create URI temporarily to normalize it
++      URI tmp = new URI(schemeString, authorityString, normalizePath(schemeString, pathString),
++          null, fragmentString).normalize();
++      this.scheme = tmp.getScheme();
++      this.authority = tmp.getAuthority();
++      this.path = tmp.getPath();
++      this.fragment = tmp.getFragment();
+     } catch (URISyntaxException e) {
+       throw new IllegalArgumentException(e);
+     }
+   }
+ 
++  public String getPath() {
++    return path;
++  }
++
++  public String getScheme() {
++    return scheme;
++  }
++
++  public String getAuthority() {
++    return authority;
++  }
++
++  public String getFragment() {
++    return fragment;
++  }
++
+   /**
+    * Merge 2 paths such that the second path is appended relative to the first.
+    * The returned path has the scheme and authority of the first path.  On
+@@ -270,14 +302,14 @@ private void initialize(String scheme, String authority, String path,
+    * @return the merged path
+    */
+   public static Path mergePaths(Path path1, Path path2) {
+-    String path2Str = path2.toUri().getPath();
++    String path2Str = path2.getPath();
+     path2Str = path2Str.substring(startPositionWithoutWindowsDrive(path2Str));
+     // Add path components explicitly, because simply concatenating two path
+     // string is not safe, for example:
+     // "/" + "/foo" yields "//foo", which will be parsed as authority in Path
+-    return new Path(path1.toUri().getScheme(), 
+-        path1.toUri().getAuthority(), 
+-        path1.toUri().getPath() + path2Str);
++    return new Path(path1.getScheme(),
++        path1.getAuthority(),
++        path1.getPath() + path2Str);
+   }
+ 
+   /**
+@@ -347,7 +379,16 @@ public static boolean isWindowsAbsolutePath(final String pathString,
+    *
+    * @return this Path as a URI
+    */
+-  public URI toUri() { return uri; }
++  public URI toUri() {
++    URI tmp;
++    try {
++      tmp = new URI(scheme, authority, path, null, fragment);
++    } catch (URISyntaxException e) {
++      throw new IllegalArgumentException(e);
++    }
++    return tmp;
++  }
++
+ 
+   /**
+    * Return the FileSystem that owns this Path.
+@@ -371,7 +412,7 @@ public FileSystem getFileSystem(Configuration conf) throws IOException {
+    */
+   public boolean isAbsoluteAndSchemeAuthorityNull() {
+     return  (isUriPathAbsolute() && 
+-        uri.getScheme() == null && uri.getAuthority() == null);
++        scheme == null && authority == null);
+   }
+   
+   /**
+@@ -381,8 +422,8 @@ public boolean isAbsoluteAndSchemeAuthorityNull() {
+    * @return whether this URI's path is absolute
+    */
+   public boolean isUriPathAbsolute() {
+-    int start = startPositionWithoutWindowsDrive(uri.getPath());
+-    return uri.getPath().startsWith(SEPARATOR, start);
++    int start = startPositionWithoutWindowsDrive(path);
++    return path.startsWith(SEPARATOR, start);
+    }
+   
+   /**
+@@ -410,7 +451,6 @@ public boolean isRoot() {
+    * @return the final component of this path
+    */
+   public String getName() {
+-    String path = uri.getPath();
+     int slash = path.lastIndexOf(SEPARATOR);
+     return path.substring(slash+1);
+   }
+@@ -420,7 +460,6 @@ public String getName() {
+    * @return the parent of a path or null if at root
+    */
+   public Path getParent() {
+-    String path = uri.getPath();
+     int lastSlash = path.lastIndexOf('/');
+     int start = startPositionWithoutWindowsDrive(path);
+     if ((path.length() == start) ||               // empty path
+@@ -433,7 +472,7 @@ public Path getParent() {
+     } else {
+       parent = path.substring(0, lastSlash==start?start+1:lastSlash);
+     }
+-    return new Path(uri.getScheme(), uri.getAuthority(), parent);
++    return new Path(scheme, authority, parent);
+   }
+ 
+   /**
+@@ -451,26 +490,25 @@ public String toString() {
+     // we can't use uri.toString(), which escapes everything, because we want
+     // illegal characters unescaped in the string, for glob processing, etc.
+     StringBuilder buffer = new StringBuilder();
+-    if (uri.getScheme() != null) {
+-      buffer.append(uri.getScheme());
++    if (scheme != null) {
++      buffer.append(scheme);
+       buffer.append(":");
+     }
+-    if (uri.getAuthority() != null) {
++    if (authority != null) {
+       buffer.append("//");
+-      buffer.append(uri.getAuthority());
++      buffer.append(authority);
+     }
+-    if (uri.getPath() != null) {
+-      String path = uri.getPath();
++    if (path != null) {
+       if (path.indexOf('/')==0 &&
+           hasWindowsDrive(path) &&                // has windows drive
+-          uri.getScheme() == null &&              // but no scheme
+-          uri.getAuthority() == null)             // or authority
++          scheme == null &&              // but no scheme
++          authority == null)             // or authority
+         path = path.substring(1);                 // remove slash before drive
+       buffer.append(path);
+     }
+-    if (uri.getFragment() != null) {
++    if (fragment != null) {
+       buffer.append("#");
+-      buffer.append(uri.getFragment());
++      buffer.append(fragment);
+     }
+     return buffer.toString();
+   }
+@@ -481,18 +519,18 @@ public boolean equals(Object o) {
+       return false;
+     }
+     Path that = (Path)o;
+-    return this.uri.equals(that.uri);
++    return this.toUri().equals(that.toUri());
+   }
+ 
+   @Override
+   public int hashCode() {
+-    return uri.hashCode();
++    return this.toUri().hashCode();
+   }
+ 
+   @Override
+   public int compareTo(Object o) {
+     Path that = (Path)o;
+-    return this.uri.compareTo(that.uri);
++    return this.toUri().compareTo(that.toUri());
+   }
+   
+   /**
+@@ -500,7 +538,6 @@ public int compareTo(Object o) {
+    * @return the number of elements in this path
+    */
+   public int depth() {
+-    String path = uri.getPath();
+     int depth = 0;
+     int slash = path.length()==1 && path.charAt(0)=='/' ? -1 : 0;
+     while (slash != -1) {
+@@ -535,36 +572,34 @@ public Path makeQualified(FileSystem fs) {
+    */
+   @InterfaceAudience.LimitedPrivate({"HDFS", "MapReduce"})
+   public Path makeQualified(URI defaultUri, Path workingDir ) {
+-    Path path = this;
++    Path pathTemp = this;
+     if (!isAbsolute()) {
+-      path = new Path(workingDir, this);
++      pathTemp = new Path(workingDir, this);
+     }
+ 
+-    URI pathUri = path.toUri();
+-      
+-    String scheme = pathUri.getScheme();
+-    String authority = pathUri.getAuthority();
+-    String fragment = pathUri.getFragment();
++    String schemeString = pathTemp.getScheme();
++    String authorityString = pathTemp.getAuthority();
++    String fragmentString = pathTemp.getFragment();
+ 
+-    if (scheme != null &&
+-        (authority != null || defaultUri.getAuthority() == null))
+-      return path;
++    if (schemeString != null &&
++        (authorityString != null || defaultUri.getAuthority() == null))
++      return pathTemp;
+ 
+-    if (scheme == null) {
+-      scheme = defaultUri.getScheme();
++    if (schemeString == null) {
++      schemeString = defaultUri.getScheme();
+     }
+ 
+-    if (authority == null) {
+-      authority = defaultUri.getAuthority();
+-      if (authority == null) {
+-        authority = "";
++    if (authorityString == null) {
++      authorityString = defaultUri.getAuthority();
++      if (authorityString == null) {
++        authorityString = "";
+       }
+     }
+     
+     URI newUri = null;
+     try {
+-      newUri = new URI(scheme, authority , 
+-        normalizePath(scheme, pathUri.getPath()), null, fragment);
++      newUri = new URI(schemeString, authorityString ,
++        normalizePath(schemeString, pathTemp.getPath()), null, fragmentString);
+     } catch (URISyntaxException e) {
+       throw new IllegalArgumentException(e);
+     }
+@@ -578,9 +613,10 @@ public Path makeQualified(URI defaultUri, Path workingDir ) {
+    */
+   @Override
+   public void validateObject() throws InvalidObjectException {
+-    if (uri == null) {
++    try {
++      this.toUri();
++    } catch (IllegalArgumentException e) {
+       throw new InvalidObjectException("No URI in deserialized Path");
+     }
+-
+   }
+-}
++}
+\ No newline at end of file
+-- 
+2.15.2 (Apple Git-101.1)
+

@@ -200,6 +200,9 @@ Developers recognized that splitting the responsibility to resource management a
 	\centering
 \end{figure}
 \fi
+
+\subsection{Introducing YARN}
+
 The fundamental idea behind YARN is to split up the functionalities of resource management and job scheduling/monitoring. In YARN we have a global ResourceManager (RM) and ApplicationMaster (AM) for each application.
 
 \textbf{ResourceManager} is responsible for distributing the resources among all the applications in the system. The \textbf{NodeManager} is a per-machine agent who monitors the resource usages (CPU, memory, network, disk) of the containers and reports them to the ResourceManager. 
