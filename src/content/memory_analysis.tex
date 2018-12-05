@@ -68,10 +68,10 @@ void analyzeInternal(ASTNode ast, PlannerContext plannerCtx) {
 
 \begin{enumerate}
 	\item Fetch metadata and populate the Parse Tree with it so making the Parse Tree a Resolved Parse Tree.
-	\item The Operator Tree is created which will contain operators that process data read from the table. This tree is called by the Map and Reduce methods.
+	\item The Operator Tree is created which will contain operators that process data read from the table. The operators of this tree are called by the Map and Reduce processes.
 	\item The semantic analyzer will deduce the schema of the result set from the row schema.
-	\item A logical optimization is done on the Operator Tree. There are two types of optimization: one that transforms the Operator Tree (like removing unnecessary operations) and one that does not (predicate pushdown, vectorization \etc).
-	\item Physical optimization and translation to the target execution engine take place. The output of this stage is the query plan. It can optimize the tree according to the engine used. For example, in MR, a common join can be translated to map-side join, if one of the tables is small enough to fit into the memory of the map nodes.
+	\item A logical optimization is done on the Operator Tree. Example of optimizations: removing unnecessary operations, predicate pushdown, vectorization \etc.
+	\item Physical optimization and translation to the target execution engine takes place. The output of this stage is the query plan. It can optimize the tree according to the engine used. For example, in MR, a common join can be translated to map-side join, if one of the tables is small enough to fit into the memory of the map nodes.
 \end{enumerate}
 
 \begin{lstlisting}
@@ -86,10 +86,10 @@ After the semantic analysis is completed, the Driver will validate the plan. Whe
 
 \clearpage
 \section{Measure the memory of HiveServer2}
-If I want to measure the memory usage of Hive, I need a tool to create and analyze heap dumps and generate memory statistics. There are several tools to choose from. In this section, I will present the tools I considered using and the method I used to get a better understanding of HS2 memory patterns.
+If I want to measure the memory usage of Hive, I need a tool to create and analyze heap dumps and generate memory statistics. There are several tools to choose from. In this section, I will present the ones I considered using and the method I used to get a better understanding of HS2 memory patterns.
 
 \subsection{Tools for generating heap dumps and statistics}
-For creating heap dumps and statistics of the memory, I decided to use a command line tool. In contrast of a UI tool, it has the benefits to generate heap dumps and statistics automatically. 
+For creating heap dumps and statistics of the memory, I decided to use a command line tool. In contrast to a UI tool, it is easier to integrate and automate, so I am able to generate heap dumps and statistics automatically. 
 
 \subsubsection{jmap}
 \textit{jmap} \cite{jmap-jcmd} can be used to obtain heap dumps and histograms from a running Java process.
@@ -214,7 +214,7 @@ The second step was to create queries which will be submitted to Hive. The first
 	\item select * from tablename t1 join tablename t2 on t1.id=t2.id join tablename t3 on t2.id=t3.id join tablename t4 on t3.id=t4.id (\textcolor{green}{\rule{2 cm}{2pt} })
 \end{itemize}
 
-We can see that the memory change caused by the number of join operators is negligible, only around 20 Megabytes per join. The results were as expected: the memory increased significantly when HiveServer2 connected to the MetaStore and asked for metadata. During physical optimization, Hive loaded metadata to the memory including partition metadata. In a highly partitioned table, this size is notable. Although real queries submitted to Hive by users are much more complicated and contains multiple tables, the model will be quite similar: heap memory will rise when metadata is loaded.
+We can see that the memory change caused by the number of join operators is negligible, only around 20 Megabytes per join. The results were as expected: the memory increased significantly when HiveServer2 connected to the MetaStore and asked for metadata. During physical optimization, Hive loaded metadata to the memory including partition metadata. In a highly partitioned table, this size is notable. Although real queries submitted to Hive by users are much more complicated and contain multiple tables, the model will be quite similar: heap memory will rise when metadata is loaded.
 
 I also wanted to see the memory effects of \textit{group by} and  \textit{union all} operations. I ran 5 more queries including these but did not find anything notable. The pattern remained the same: see the chart below. 
 
@@ -227,7 +227,7 @@ I also wanted to see the memory effects of \textit{group by} and  \textit{union 
 I came to the conclusion that for a single connection to HiveServer2, the most important factor that increases heap size is the number of partitions in tables, so I decided to continue my investigation in that area. 
 
 \subsection{Memory consumption of partitions}
-A well-known issue in Hive is, if we have a highly partitioned table, the memory goes really high in HiveServer2. As a first step, I wanted to recreate the issue. I created tables with an increasing number of partitions: 200, 2000, 5000, 20000 and 100000 partitions. For each table, I executed the same query which contains a simple select with a self-join. During this, I measured the memory and created a heap dump after the semantic analyzer phase of the compilation. At this stage, the partitions are already loaded so I can analyze how much these objects exactly reserve. To get this information, I analyzed the heap dumps with VisualVM and filtered for the Partition objects. The pattern we can observe was as expected, but I the size of the heap reserved by these objects were smaller than I previously anticipated.
+A well-known issue in Hive is, if we have a highly partitioned table, the memory goes really high in HiveServer2. As a first step, I wanted to recreate the issue. I created tables with an increasing number of partitions: 200, 2000, 5000, 20000 and 100000 partitions. For each table, I executed the same query which contains a simple select with a self-join. During this, I measured the memory and created a heap dump after the semantic analyzer phase of the compilation. At this stage, the partitions are already loaded so I can analyze how much these objects exactly reserve. To get this information, I analyzed the heap dumps with VisualVM and filtered for the Partition objects. The pattern we can observe was as expected, but the size of the heap reserved by these objects were smaller than I previously anticipated.
 
 \noindent From the heap dumps I have found that mainly three kind of objects reserve the memory due to partitions, so I will focus on these objects: 
 \begin{enumerate}
@@ -256,7 +256,7 @@ A well-known issue in Hive is, if we have a highly partitioned table, the memory
 	\caption{Reserved memory by partitions}
 \end{figure}
 
-As we see, for 100.000 partitions the reserved memory is aroung 385 Megabytes. Before taking the samples, I expected higher memory consumption. However, with a little investigation I found that the memory waste around partitions was already somewhat decreased \cite{hive-partitions}. \textit{PartitionDesc} objects has a \textit{java.util.Properties} field. These \textit{Properties} fields in the \textit{PartitionDesc} most often are the same. Interning these saves a big amount of memory. In a later section, I will write more about the interning solution because it gave me an idea to fix another memory related issue.
+As we see, for 100.000 partitions the reserved memory is around 385 Megabytes. Before taking the samples, I expected higher memory consumption. However, with a little investigation I found that the memory waste around partitions was already somewhat decreased \cite{hive-partitions}. \textit{PartitionDesc} objects has a \textit{java.util.Properties} field. These \textit{Properties} fields in the \textit{PartitionDesc} most often are the same. Interning these saves a big amount of memory. In a later section, I will write more about the interning solution because it gave me an idea to fix another memory related issue.
 
 However the memory reserved by partitions is still high enough, so I decided to take a look at the generated heap dumps and try to find wastes or problems that affects memory.
 
@@ -300,7 +300,7 @@ The community agreed that the way URIs store these paths is a waste, and could b
 \end{itemize}
 \section{Solution ideas}
 \subsection{Solution 1: WeakReference}
-A WeakReferenced object works in a way, that if the object is only weakly reachable (its only reference is a WeakReference), it will not prevent the object to be garbage collected. We would have a WeakReference to the URI and when the GC runs, it can collect the URIs if we do not have a strong reference to it. 
+A WeakReferenced object works in a way, that if the object is only weakly reachable (its only references are WeakReferences), it will not prevent the object to be garbage collected. We would have a WeakReference to the URI and when the GC runs, it can collect the URIs if we do not have a strong reference to it. 
 
 When someone wants to get the URI representation of the path and calls the \textit{toURI} function, we need to check if the URI exists through the WeakReference or not. If it exists, we can just get it because we have a WeakReference to it. If it does not, we need to recreate the URI from its parts. 
 
@@ -348,7 +348,7 @@ long estimatedTime = System.nanoTime() - startTime;
 
 The results showed that using SoftReference has a bit of memory overhead because apart from the URI itself, we need to store the SoftReferences which require heap space as well. Thus, it would only be a save if the heap is almost full, other than that we it would reserve even more memory. The time of toURI calls might be deceptive. Calling \textit{toURI} method only once is slower than with the original solution and we do not use the method as in the example above. 
 
-Looking into the results of the third possible solution, the benefits are clear memory-wise. However, the time of the toURI calls do not look so promising. The CPU time is almost 10x bigger than with the original approach. But if we take into account other factors, not just the plain CPU time, the overhead might not be that big. If the memory of the paths are reduced, the GC can work much faster, so smaller GC pauses will occur. Also, these Path objects passed through the interface of Hadoop in both direction. For example, NameNode gives the location of files in the format of Paths and Hive passes these objects to Hadoop as well. Considering these, my change would be possibly beneficial for transfering data through the network: Passing objects which are smaller is obviously faster. 
+Looking into the results of the third possible solution, the benefits are clear memory-wise. However, the time of the toURI calls do not look so promising. The CPU time is almost 10x bigger than with the original approach. But if we take into account other factors, not just the plain CPU time, the overhead might not be that big. If the memory of the paths are reduced, the GC can work much faster, so smaller GC pauses will occur.
 
 An additional factor that should be considered is that if we remove the \textit{toUri} call whenever we want to get the values of path, scheme, authority or fragment, we can improve the performance of the original solution, since we can get those directly. Instead of \textit{Path.toUri().getPath() } we can just say \textit{Path.getPath()}.
 
@@ -423,10 +423,10 @@ Stress testing of HoS (Hive with Spark execution engine) has revealed that we ha
 HS2 has a so called "small files problem". Something like \textit{create external table} with lots of small files in the  HDFS directory of the table causes HiveServer2 to load the HDFS paths of the files into memory. If we have millions of small files (which is not that rare), these paths can use Gigabytes of heap memory. Hive does a \textit{listFiles} that returns all the Paths, to determine file permissions \etc. So create table hangs and other queries wait a LOT.
 
 \subsection{Apache Impala's solution for the problem}
-Apache Impala also faced problems caused by the size of memory used by the Paths. Impala is a query engine on top of Hadoop, similar to Hive. They already solved this problem on their side. Impala has a \textit{HdfsPartitionLocationCompressor.java} class which they use to solve exactly this problem. I also thought of the idea to solve the issue in Hive, however for a long term, it may not be the most desirable strategy. Hive would have to always convert the Paths whenever it passes them to Hadoop (Impala does this). I think if the problem can be solved in  Hadoop - where it comes from - without a performance overhead, it should be done there. My task is to give the community a proof that CPU overhead will not happen because of the memory fix. 
+Apache Impala also faced problems caused by the size of memory used by the Paths. Impala is a query engine on top of Hadoop, similar to Hive. They already solved this problem on their side. Impala has a \textit{HdfsPartitionLocationCompressor.java \cite{impala-solution}} class which they use to solve exactly this problem. I also thought of the idea to solve the issue in Hive, however for a long term, it may not be the most desirable strategy. Hive would have to always convert the Paths whenever it passes them to Hadoop (Impala does this). I think if the problem can be solved in  Hadoop - where it comes from - without a performance overhead, it should be done there. My task is to give the community a proof that CPU overhead will not happen because of the memory fix. 
 
 \section{Benchmarking on a data center cluster}
-The patch would effect every part of Hadoop, so a thorough benchmark is needed. The performance tests run on a data center cluster with Hadoop 3.0.0 for more than a month. From 13 September to 25 September without my patch, from 26 September to 19 October with my patch. The following charts will show the results for some test cases. On these diagrams, the values before the red line are without my patch and after the red line are the values including my patch. I created several diagrams to show the full result to the community. I will only include a part of them here, the full document can be found on the Jira ticket (HDFSbenchmark.pdf) \cite{hdfs-path}.
+The patch would effect every part of Hadoop, so a thorough benchmark is needed. The performance tests run on a data center cluster with Hadoop 3.0.0 for more than a month. From 13 September to 25 September without my patch, from 26 September to 19 October with my patch. The following charts will show the results for some test cases. On these diagrams, the values before the red line are without my patch and after the red line are the values including my patch. The points on the figures represent a measurement taken every day. I created several diagrams to show the full result to the community. I will only include a part of them here, the full document can be found on the Jira ticket (HDFSbenchmark.pdf) \cite{hdfs-path}.
 
 \noindent Parameters of the benchmarks: 
 \begin{itemize}
@@ -446,11 +446,17 @@ The patch would effect every part of Hadoop, so a thorough benchmark is needed. 
 	\centering
 	\caption{TeraSort Average CPU time}
 \end{figure}
+
+The diagram shows some spikes after the red line. This could be caused by bigger pressure put on the cluster, or maybe the Garbage Collection happened more often during the run. These spikes were common before applying my patch as well, so it most probably does not represent any decrease. For the following diagrams where spikes are present, it is also the most probable explanation.
+
 \begin{figure}[H]
 	\includegraphics[width=125mm, keepaspectratio]{figures/terasort_map.png}
 	\centering
 	\caption{TeraSort Map time}
 \end{figure}
+
+The TeraSort average time taken by Map operations is a little less after the red line, but looking into only this diagram does not mean a lot.
+
 \subsection{TeraValidate benchmark}
 "TeraValidate validates the sorted output to ensure that the keys are sorted within each file. If anything is wrong with the sorted output, the output of this reducer reports the problem." \cite{terasort}
 
@@ -510,7 +516,7 @@ for i in `seq 1 50`;
 &done;	
 \end{lstlisting}
 
-In the body of the for loop, for each iteration, I made a connection to HiveServer2 using Beeline command line client. As arguments, I provided the JDBC connection URL of HS2 (the default port that HS2 is listening is 10000) and the username/password, which is admin/admin as a default value.
+In the body of the for loop, for each iteration, I made a connection to HiveServer2 using the Beeline command line client. As arguments, I provided the JDBC connection URL of HS2 (the default port that HS2 is listening is 10000) and the username/password, which is admin/admin as a default value.
 
 With the previously mentioned measuring code, I created a heap dump after 50 connections were made to HS2 and session were already created. The following figure shows the objects that use the most heap memory.
 
@@ -524,7 +530,7 @@ For each session, an individual HiveConf object is created, which contains all t
 
 The HiveConf class is a descendant of the \textit{Configuration.java} class, that is inherited from Hadoop. The biggest memory of each HiveConf a private Properties field. The Properties class is a type of HashMap that only contains String keys and values. Looking into the Properties fields of each HiveConf confirmed my assumption: they have exactly the same values apart from a few properties.
 
-This inspired me to look more into the details. How these configuration objects are used? When we start Hive, Hadoop configuration properties are applied, and we read Hive's configuration file (hive-site.xml) and overlay those properties. After this, for each session, we create a new HiveConf instance with copying the existing "base". This way sessions can add their own unique Properties to their configuration object. 
+This inspired me to look more into the details. How these configuration objects are used? When we start Hive, Hadoop configuration properties are applied, and we read Hive's configuration file (hive-site.xml) and overlay those properties. After this, for each session, we create a new HiveConf instance with copying the existing "base." This way sessions can add their own unique Properties to their configuration object. 
 
 It is important to notice that we rarely touch the "base" configurations. Usually, the sessions add some Properties to it and the base configuration remains untouched. To get rid of the memory overhead, a possible solution would be to use the same Properties object for each HiveConf if the values in them are the same.
 
@@ -721,4 +727,4 @@ When we use Hive on Spark running with a large number of cores per executor, we 
 \section{Future work around configuration objects}
 The issue I reported is still ongoing since tests are needed to see if my patch works correctly in every scenario. I also provided a test class, which needs to be expanded, to cover all the scenarios a Properties object can be used by HiveConf. 
 
-Hadoop also has an implementation of the Configuration class, called JobConf. These objects are also present in HS2 and cause memory overhead the same way as HiveConf does. There is an open source Jira that was intended to solve the duplication without getting \textit{ConcurrentModificationException}, but the memory problem was not resolved just prevented throwing the exception \cite{hive-jobconf}. The solution I provide for HiveConf could also be used for getting rid of the duplication in JobConf.
+Hadoop also has an implementation of the Configuration class, called JobConf. These objects are also present in HS2 and cause memory overhead the same way as HiveConf does. There is an open source Jira ticket that was intended to solve the duplication without getting \textit{ConcurrentModificationException}, but the memory problem was not resolved just prevented throwing the exception \cite{hive-jobconf}. The solution I provide for HiveConf could also be used for getting rid of the duplication in JobConf.

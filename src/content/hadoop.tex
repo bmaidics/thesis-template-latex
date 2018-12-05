@@ -1,5 +1,7 @@
 \chapter{Apache Hadoop}
-Apache Hadoop is an open source distributed framework for managing, processing and storing a huge amount of data in clustered systems built from commodity hardware. All modules in Hadoop were designed with an assumption that hardware failures are frequent and should be automatically handled by the framework. One of the most important characteristics of Hadoop is that it partitions data and computation across many hosts and executes computation in parallel close to the data it uses.  \cite{Hadoop-wiki}
+In this chapter, I will briefly introduce the technologies I worked with. To understand the memory issues and their proposed resolution, a high level overview of the technology stack is needed.
+
+Apache Hadoop is an open source distributed framework for managing, processing and storing large amounts of data in clustered systems built from commodity hardware. All modules in Hadoop were designed with an assumption that hardware failures are frequent and should be automatically handled by the framework. One of the most important characteristics of Hadoop is that it partitions data and computation across many hosts and executes computation in parallel close to the data it uses.  \cite{Hadoop-wiki}
 
 \noindent The base of the Hadoop framework contains the following modules:
 \begin{itemize}
@@ -25,7 +27,7 @@ HDFS is the file system of Hadoop. It stores file system metadata and applicatio
 \subsection{NameNode}
 NameNode keeps the directory tree of all files in the file system and tracks where data is kept across the cluster; it does not store the files. Clients talk to the NameNode whenever they want to locate a file. The NameNode's response is a list of relevant DataNode servers where the data is available. 
 
-As a result of this approach, NameNode is a Single Point of Failure in the HDFS cluster. Whenever the NameNode goes down, the file system goes offline.
+As a result of this approach, NameNode is a Single Point of Failure in the HDFS cluster. Whenever the NameNode goes down, the file system becomes unavailable.
 \begin{figure}[H]
 	\includegraphics[width=80mm, keepaspectratio]{figures/namenode_problem.png}
 	\centering
@@ -64,7 +66,7 @@ When someone reads a file, the HDFS client asks the NameNode for the list of Dat
 \begin{figure}[H]
 	\includegraphics[width=100mm, keepaspectratio]{figures/hdfs_client.png}
 	\centering
-	\caption{HDFS file writing}
+	\caption{HDFS file writing  \cite{Shvachko:2010:HDF:1913798.1914427}}
 \end{figure}
 The client creates a new file by giving its path to the NameNode. For each block, the NameNode will return a list of DataNodes to place the replicas. The client pipelines data to the given DataNodes, and they will confirm the creation of the block to the NameNode.
 
@@ -103,7 +105,7 @@ In Hadoop MapReduce, instead of moving data into the processing unit, we move th
 However, the MapReduce approach is very cost efficient, since all the nodes are working simultaneously on their part of the data and there is no chance of a node getting overloaded.
 
 Using Hadoop we just need to provide the map and reduce functions, the rest is done by the framework.  The word count example (\ref{example}) would look like the following in Java:
-\subsubsection*{Map}
+\subsubsection*{Map  \cite{MapReduce-example}}
 \begin{lstlisting}[language=Java]
 	public void map(LongWritable key, Text value, Context context) throws IOException,InterruptedException {
 		String line = value.toString();
@@ -128,7 +130,7 @@ The input and output of the Mapper is a key/value pair.
 	\item Value: the hardcoded value 1
 \end{itemize}
 
-\subsubsection*{Reduce}
+\subsubsection*{Reduce  \cite{MapReduce-example}}
 \begin{lstlisting}
 	public void reduce(Text key, Iterable<IntWritable> values,Context context) throws IOException,InterruptedException {
 		int sum=0;
@@ -178,7 +180,7 @@ In Hadoop 1.0 the MapReduce module was responsible for cluster resource manageme
 	\centering
 \end{figure}
 
-\noindent Resource management in Hadoop 1.0 \cite{Hadoop1.0}:
+\iffalse\noindent Resource management in Hadoop 1.0 \cite{Hadoop1.0}:
 
 Clients submit jobs to the JobTracker which turns to the NameNode. It returns the location of the data. The JobTracker locates TaskTracker nodes with available slots close to the data and sends the job to the chosen TaskTracker nodes. After the job has started, the JobTracker monitors the chosen TaskTracker nodes. If they do not send heartbeats frequently, they are deemed to have failed, so the task will be scheduled on a different TaskTracker. The JobTracker gets a notification if a task fails. It decides what to do then: it may send the job to another TaskTracker, it can mark the record as something to avoid, or it may even put the TaskTracker to blacklist since it is unreliable. If the JobTracker sees that the task is finished, it will update its status. Clients poll the JobTracker for information.
 
@@ -197,12 +199,12 @@ Developers recognized that splitting the responsibility to resource management a
 	\caption{From Hadoop 1.0 to Hadoop 2.0}
 	\centering
 \end{figure}
-
+\fi
 The fundamental idea behind YARN is to split up the functionalities of resource management and job scheduling/monitoring. In YARN we have a global ResourceManager (RM) and ApplicationMaster (AM) for each application.
 
 \textbf{ResourceManager} is responsible for distributing the resources among all the applications in the system. The \textbf{NodeManager} is a per-machine agent who monitors the resource usages (CPU, memory, network, disk) of the containers and reports them to the ResourceManager. 
 
-The \textbf{ApplicationMaster} is framework-specific, and its task is to ask the ResourceManager for resources when needed. It is also working with the NodeManager to execute and monitor tasks.
+The \textbf{ApplicationMaster} is framework-specific, and its task is to ask the ResourceManager for resources when needed. It is also working with the NodeManagers to execute and monitor tasks.
 
 The ResourceManager is divided into two main components: Scheduler and ApplicationsManager.
 \begin{itemize}
@@ -217,4 +219,4 @@ The ResourceManager is divided into two main components: Scheduler and Applicati
 	\centering
 \end{figure}
 
-In summary, with YARN Hadoop is able to run applications that do not follow the MapReduce model since it decouples the resource management and scheduling capabilities of MapReduce. With the help of YARN, we can efficiently utilize the resources and can run multiple applications in Hadoop, all sharing a common resources.
+In summary, with YARN Hadoop is able to run applications that do not follow the MapReduce model since it decouples the resource management and scheduling capabilities of MapReduce. With the help of YARN, we can efficiently utilize the resources and can run multiple applications in Hadoop, all sharing common resources.

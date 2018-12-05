@@ -6,7 +6,7 @@ This section shows the main differences between Hive and traditional databases (
 
 Hive supports SQL interface but it is not a full database. It follows the WORM (Write Once Read Many) model while RDBMS is designed for multiple writes and reads. Hive uses schema on read and traditional databases offer schema on write. Looking into Hive's approach, data is not validated until it is read. We can define multiple schemas on the same data and it provides a fast initial loading since the operation is just a copy and write. However, the schema on read approach has some drawbacks. Schema check on write ensures that the data is not corrupt and it provides a better query performance: when we read data, schema checking is not needed. Hive is a better choice when the schema is not available at loading time since it can be added later dynamically. 
 
-From Hive 0.13, Hive supports transactions \cite{Hive-apache} and full ACID semantics at row level, but with many limitations. Previous to this, atomicity, consistency and durability were available and only at partition level. By introducing transactions, Insert, Update and Delete keywords were added to HiveQL. 
+From Hive 0.13, Hive supports transactions \cite{Hive-apache} and full ACID semantics at row level, but with many limitations. Previous to this, atomicity, consistency and durability were available only at partition level. By introducing transactions, Insert, Update and Delete keywords were added to HiveQL. 
 
 The maximum data size allowed in a traditional RDBMS is 10's of Terabytes. However, Hive can easily handle Petabytes.
 
@@ -49,7 +49,7 @@ Hive can use this information for pruning the directories to be scanned for quer
 \begin{lstlisting}
 	SELECT * FROM test_table WHERE date='2018-01-01';
 \end{lstlisting}
-When executing this query, Hive will only scan the files in \texttt{/user/hive/warehouse/test\_table/date=2018-01-01} directory. Partitioning our data has a significant impact on the time taken by queries.
+When executing this query, Hive will only scan the files in \texttt{/user/hive/warehouse/test\_table/date=2018-01-01} directory. Partitioning our data can have a significant impact on the time taken by queries.
 
 Although data in Hive is always in the corresponding directory (\texttt{<warehouse\_root\_directory>/table\_name}), Hive is able to query data stored in other locations in HDFS. In order to do this, we can create EXTERNAL tables thus:
 \begin{lstlisting}
@@ -57,17 +57,17 @@ Although data in Hive is always in the corresponding directory (\texttt{<warehou
 		LOCATION '/user/example_table/example_data';
 \end{lstlisting}
 
-Hive assumes that the external table in its internal format. The difference between an external and default (managed by Hive) table is that the drop table command doesn't affect the data itself in an external table. However, in a managed table, Hive drops the associated data.
+Hive assumes that the external table is in its internal format. The difference between an external and default (managed by Hive) table is that the drop table command doesn't affect the data itself in an external table. However, in a managed table, Hive drops the associated data.
 
 \section{Architecture}
 The main components of Hive are the following \cite{Hive-paper}:
 \begin{itemize}
-	\item \textbf{Driver}: manages the lifecycle of a HiveQL query by creating a session for it. The driver also collects the result after the execution phase.
+	\item \textbf{Driver}: manages the lifecycle of a HiveQL query. The Driver also collects the result after the execution phase.
 	\item  \textbf{MetaStore}: stores metadata about tables, columns or partitions. For example, it stores the table schema and location.
 	\item \textbf{Compiler}: compiles the HiveQL statement and generates the execution plan using the partition and table metadata obtained from the MetaStore. First, it parses the query and does semantic analysis. The Compiler then converts it into AST (Abstract Syntax Tree), and after compatibility checking, to a DAG of Map and Reduce tasks (if Hadoop MapReduce is the execution engine). 
-	\item \textbf{Optimizer}: transformations are done to optimize the DAG for better performance. It is an evolving component. Previously, only rule-based optimization was available which performed column pruning and predicate pushdown. Later, map-side join was introduced and several other join optimizations, as well as cost-based optimization were added.
+	\item \textbf{Optimizer}: transformations are performed to optimize the DAG for better performance. It is an evolving component. Previously, only rule-based optimization was available which performed column pruning and predicate pushdown. Later, map-side join was introduced and several other join optimizations, as well as cost-based optimization were added.
 	\item \textbf{Execution Engine}: executes the plan created by the compiler. The plan is a DAG of stages. The engine manages the dependencies between these stages and executes them in the corresponding component. Hive is compatible with 3 execution engines: MapReduce, Apache TEZ and Spark which can run on Hadoop YARN.
-	\item \textbf{HiveServer2}: a service that provides a Thrift interface so clients can execute queries against Hive. Thrift is an RPC (Remote Call Procedure) framework for defining services for multiple languages.
+	\item \textbf{HiveServer2}: a service that provides a Thrift interface so clients can execute queries against Hive. Thrift is an RPC (Remote Call Procedure) framework for defining services for multiple languages. HS2 is also the process which contains the Driver.
 	\item \textbf{Clients}: multiple clients are available to interact with Hive. Examples include Beeline (CLI), JDBC/ODBC, Python or Ruby client \etc.
 \end{itemize}
 
@@ -79,9 +79,7 @@ The main components of Hive are the following \cite{Hive-paper}:
 
 Clients can connect to HiveServer2 using its Thrift Service. HS2 supports authentication of clients using Kerberos or LDAP authentication. Hive Metastore server also supports Kerberos authentication for Thrift clients.
 
-Sentry is a role-based authorization module for Hadoop, that grants control of privileges of authenticated users. Hive can access Sentry using an "authorization hook", which Sentry registers to the Hive configuration file if security is enabled on the cluster.
-
-HMS uses DataNucleus to persist metadata, so any relational database supported by it can be used: it can be either embedded (\eg Derby) or remote (\eg MySQL) Metastore database.
+HMS uses DataNucleus to persist metadata, so many relational databases supported by it can be used: it can be either embedded (\eg Derby) or remote (\eg MySQL) Metastore database.
 
 \section{Life of a Query}
 \begin{figure}[H]
@@ -95,7 +93,7 @@ First, the query is parsed (2), that is transformed into a parse tree using the 
 
 The logical plan generator (6) transforms the internal representation to an operator tree, which is the logical plan. These operators can either be relational algebra operators (like filter, join) or Hive specific operators (\eg reduceSink) which are later used to convert the query to a series of MapReduce jobs.
 
-Optimization takes place for better performance (7). The most common optimizations are: 
+Optimization takes place for better performance (7). Some of the optimizations are: 
 \begin{itemize}
 	\item Column pruning, so only columns needed by the query are kept
 	\item Predicate pushdown: this way, the rows can be filtered as soon as possible
@@ -104,7 +102,7 @@ Optimization takes place for better performance (7). The most common optimizatio
 	\item \etc
 \end{itemize}
 
-At physical plan generation (8) the logical plan is split into a series of Map, Reduce, and HDFS tasks (of course if the execution engine is Spark, then to Spark tasks). 
+At physical plan generation (8) the logical plan is split into a series of Map, Reduce tasks (of course if the execution engine is Spark, then to Spark tasks). Also optimization for the specific engine happens at this phase. 
 
 The Driver gets back the physical plan (9) and sends it to the corresponding execution engine (which is MapReduce by default - 10, 11). In this case, Hadoop executes a series of Map and Reduce tasks and returns the result to the Driver (12, 13), which sends it to the user (14).
 
@@ -120,4 +118,4 @@ Although with a correct configuration and setup we can make our HiveServer2 inst
 	\item Complex queries that access a large number of partitions from multiple tables can easily crash HS2.
 \end{itemize}
 
-If any of these conditions exist, Hive can slow down or refuse further connections, queries can fail, and long query execution can occur. If the Garbage Collector cannot handle the memory reserved, HiveServer2 can go OOM.
+If any of these conditions exist, HS2 can slow down or refuse further connections, queries can fail, and long query compilation or respones retrieval can occur. If the Garbage Collector cannot handle the memory reserved, HiveServer2 can go OOM.
