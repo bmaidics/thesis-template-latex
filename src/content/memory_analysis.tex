@@ -134,7 +134,7 @@ With the available tools, I was able to generate heap dumps quite easily. Howeve
 
 In order to use jcmd from Java, I needed a way to execute a terminal command from code. With the \textit{ProcessBuilder} Java class, I was able to create operating system processes with the given attributes. The \textit{Runtime.exec()} method would have done the same, but using this command is discouraged. 
 
-Now that I was able to run a command line tool from Java, I needed the process ID of HiveServer2. Since Hive uses Java 8, I could not use the new Process API that Java 9 provides. With the help of the \textit{ManagementFactory} class, I was able to get the managed bean of the runtime system of the JVM. It returns a class implementing the \textit{RuntimeMXBean} interface. The name of the running JVM contains the ID of the process. With the \textit{RuntimeMXBean.getName()} method, I was able to get the PID of HiveServer2. This method returns a string in a format of \textit{pid@hostname}. Using the split method, we can get our application's process ID.
+Now that I was able to run a command line tool from Java, I needed the process ID of HiveServer2. Since Hive uses Java 8, I could not use the new Process API that Java 9 provides. With the help of the \textit{ManagementFactory} class, I was able to get the managed bean of the runtime system of the JVM. It returns a class implementing the \textit{RuntimeMXBean} interface. The name of the running JVM contains the ID of the process. With the \textit{RuntimeMXBean.getName()} method, I was able to get the PID of HiveServer2. This method returns a string in a format of \textit{pid@hostname}. By splitting the string, we can get our application's process ID.
 
 To avoid code duplication, I created a method for getting a ProcessBuilder that contains the given command and the PID of HiveServer2.
 
@@ -192,7 +192,7 @@ To do this, I made a function (printResultToCSV) which parses the given string a
 \caption{Sample output after parsing}
 \end{table}
 \subsection{How HiveServer2 uses memory}
-I now had the code to measure the memory of Hive and get a general picture of its usage at certain phases. With this, I was able to get a better understanding of when and why memory goes high. I wanted to answer these questions: How does the number of joins increase memory? Which type of query generates a lot of memory usage: union, group by? How does increasing the number of partitions affect the heap size? In this section, these questions will be answered.
+I now had the code to measure the memory of Hive and get a general picture of its usage at certain phases. With this, I was able to get a better understanding of when and why memory is wasted. I wanted to answer these questions: How does the number of joins increase memory? Which type of query generates a lot of memory usage: union, group by? How does increasing the number of partitions affect the heap size? In this section, these questions will be answered.
 
 The first step is to create a managed table for running my queries. Hive faces memory problems with highly partitioned tables. I decided that, for the first run, 20 000 partitions would be enough. 
 
@@ -453,7 +453,7 @@ The diagram shows some spikes after the red line. This could be caused by more p
 	\caption{TeraSort Map time}
 \end{figure}
 
-The TeraSort average time taken by Map operations is a little less after the red line, but looking into only this diagram does not mean a lot.
+The TeraSort average time taken by Map operations is a little less after the red line, but looking into only this diagram does not mean a lot by itself.
 
 \subsection{TeraValidate Benchmark}
 "TeraValidate validates the sorted output to ensure that the keys are sorted within each file. If anything is wrong with the sorted output, the output of this reducer reports the problem." \cite{terasort}
@@ -578,7 +578,8 @@ The code above is responsible for creating a HiveConfProperties instance. It sto
 
 If someone calls \textit{HiveConf.unset} function, \textit{Properties.remove} (in this case \textit{HiveConfProperties.remove} will be called. If the property we want to remove is contained by the interned Properties object, we cannot remove it directly because other HiveConfProperties may use it. To solve this issue, I introduced the \textit{removed} Properties field to store values that should no longer be available. So if we want to get the value of a key, we first check if the key is in the \textit{removed} Properties: if the answer is yes, we will consider this property unavailable.
 
-Duplication can occur in my solution: if someone would like to set a property that is already in the \textit{interned} field, we cannot override it there, so we should add it in the non-interned Properties to return the correct value. However, this way, we will have two properties with the same content. Calculating the size of the HashMap will be inaccurate. In order to solve this issue, I created a counter field called \textit{duplicatedPropertiesCount} to store the number of the duplicates. Knowing this value will allow us to provide an accurate size. 
+Duplication can occur in my solution: say we want to set a property that is already in the \textit{interned} field. We cannot override it there, so we should add it in the non-interned Properties to return the correct value. However, this way, we will have two properties with the same content. Calculating the size of the HashMap will be inaccurate. In order to solve this issue, I created a counter field called \textit{duplicatedPropertiesCount} to store the number of the duplicates. Knowing this value will allow us to provide an accurate size. 
+
 
 Since HiveConfProperties is a subclass of \textit{java.util.Properties} and, because of this, a subclass of \textit{java.util.HashTable}, I implemented its methods.  \textit{hadoop.conf.Configuration} (base class of HiveConf) and \textit{HiveConf} only use a subset of these functions, so I decided to implement only methods that can be invoked. For the other methods, a \textit{NotImplementedException} is thrown.  
 
@@ -597,7 +598,7 @@ public String getProperty(String key) {
 }
 \end{lstlisting}
 
-If non-interned (super) contains the key, return that value. If not, we need to make sure it is not in the \textit{removed} Properties (still valid). If the value is valid, return it from the base (interned). \textit{getProperty(String key, String defaultValue)} and \textit{get} methods from HashTable work the same way. 
+If the non-interned properties (super) contains the key, return that value. If not, we need to make sure it is not in the \textit{removed} Properties (still valid). If the value is valid, return it from the base (interned). \textit{getProperty(String key, String defaultValue)} and \textit{get} methods from HashTable work the same way. 
 \subsubsection{setProperty}
 \begin{lstlisting}
 @Override
@@ -617,7 +618,7 @@ public synchronized Object setProperty(String key, String value) {
 }
 \end{lstlisting}
 
-If interned already contains the property to be set, we need to set it in the non-interned Properties. However, in this way, we will have duplicates, since both Properties instance will contain the same value. Thus, to be able to give the correct size when needed, we need to count these duplicates. If we are setting a value that had been previously removed, we need to "revalidate" the property. If the value is not changed, we should not set it in the non-interned Properties in order to avoid unnecessary duplicates. 
+If  the interned field already contains the property to be set, we need to set it in the non-interned Properties. However, in this way, we will have duplicates, since both Properties instance will contain the same value. Thus, to be able to give the correct size when needed, we need to count these duplicates. If we are setting a value that had been previously removed, we need to "revalidate" the property. If the value is not changed, we should not set it in the non-interned Properties in order to avoid unnecessary duplicates. 
 
 \subsubsection{The mergeProperties Helper Function}
 To override functions such as \textit{stringPropertyNames} or \textit{keySet} \etc, I introduced a helper function. Since for these methods we need values of the properties from both (non-interned and interned) objects, the helper method will merge the two parts into one Properties object. This way we can just delegate the call to the merged Properties object. In the \textit{mergeProperties} I simply iterated through both parts and collected each HashTable entry (if not removed) and returned a new Properties instance. 
@@ -654,7 +655,7 @@ public synchronized boolean containsKey(Object key) {
 	return super.containsKey(key);
 }
 \end{lstlisting}
-A key or value is contained by a HiveConfProperties instance if its removed field does not contain it and the interned or non-interned does.
+A key or value is contained by a HiveConfProperties instance if its removed field does not contain it and the interned or non-interned Properties does.
 
 \subsubsection{remove}
 \begin{lstlisting}
@@ -726,4 +727,4 @@ When we use Hive on Spark running with a large number of cores per executor, we 
 \section{Future Work Around Configuration Objects}
 The issue I reported is still ongoing since tests are needed to see if my patch works correctly in every scenario. I also provided a test class, which needs to be expanded, to cover all the scenarios in which a Properties object can be used by HiveConf. 
 
-Hadoop also has an implementation of the Configuration class called JobConf. JobConf objects are also present in HS2 and cause memory overhead the same way HiveConf does. There is an open source Jira ticket that was intended to solve duplication without getting a \textit{ConcurrentModificationException}, but the memory problem was not resolved just prevented throwing the exception \cite{hive-jobconf}. The solution I provide for HiveConf could also be used for getting rid of the duplication of JobConf.
+Hadoop also has an implementation of the Configuration class called JobConf. JobConf objects are also present in HS2 and cause memory overhead the same way HiveConf does. There is an open source Jira ticket that was intended to solve duplication without getting a \textit{ConcurrentModificationException}, but the memory problem was not resolved, only the Exception was prevented from being thrown\cite{hive-jobconf}. The solution I provide for HiveConf could also be used for getting rid of the duplication of JobConf.
